@@ -121,6 +121,13 @@ export function VerifyOTP() {
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Enter the 6-digit code sent to your phone
               </p>
+              
+              {/* Demo hint */}
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
+                  Demo Mode: Use OTP code <span className="font-mono font-bold">099887</span>
+                </p>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">

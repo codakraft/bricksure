@@ -51,19 +51,34 @@ if (import.meta.env.DEV || !import.meta.env.VITE_API_URL) {
       }
     }
   });
-  mock.onPost('/auth/otp/verify').reply(200, { 
-    ok: true, 
-    data: { 
-      token: 'mock-jwt-token',
-      user: {
-        id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        name: 'John Doe',
-        email: 'john@example.com',
-        phone: '+2348012345678',
-        kycStatus: 'verified',
-        createdAt: new Date().toISOString()
-      }
+  mock.onPost('/auth/otp/verify').reply((config) => {
+    const data = JSON.parse(config.data);
+    const { code } = data;
+    
+    // Only accept the static OTP: 099887
+    if (code !== '099887') {
+      return [400, { 
+        ok: false, 
+        error: { 
+          message: 'Invalid OTP code. Please enter the correct verification code.' 
+        } 
+      }];
     }
+    
+    return [200, { 
+      ok: true, 
+      data: { 
+        token: 'mock-jwt-token',
+        user: {
+          id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+          name: 'John Doe',
+          email: 'john@example.com',
+          phone: '+2348012345678',
+          kycStatus: 'verified',
+          createdAt: new Date().toISOString()
+        }
+      }
+    }];
   });
 
   // Profile endpoints
