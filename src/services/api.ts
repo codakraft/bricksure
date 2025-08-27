@@ -2,7 +2,7 @@ import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 
 export const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -31,8 +31,8 @@ api.interceptors.response.use(
   }
 );
 
-// Mock API responses for development
-if (process.env.NODE_ENV === 'development') {
+// Mock API responses for development and demo
+if (import.meta.env.DEV || !import.meta.env.VITE_API_URL) {
   const mock = new MockAdapter(api, { delayResponse: 1000 });
 
   // Auth endpoints
