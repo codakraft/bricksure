@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Shield, ArrowLeft } from 'lucide-react';
-import { Layout } from '../../components/Layout/Layout';
-import { Card } from '../../components/UI/Card';
-import { Button } from '../../components/UI/Button';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../components/UI/Toast';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Shield, ArrowLeft } from "lucide-react";
+import { Layout } from "../../components/Layout/Layout";
+import { Card } from "../../components/UI/Card";
+import { Button } from "../../components/UI/Button";
+import { useAuth } from "../../hooks/useAuth";
+import { useToast } from "../../components/UI/Toast";
 
 export function VerifyOTP() {
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
-  
+
   const { verifyOTP } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -39,7 +39,7 @@ export function VerifyOTP() {
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
       const prevInput = document.getElementById(`otp-${index - 1}`);
       prevInput?.focus();
     }
@@ -47,13 +47,13 @@ export function VerifyOTP() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const otpCode = otp.join('');
-    
+    const otpCode = otp.join("");
+
     if (otpCode.length !== 6) {
       addToast({
-        type: 'error',
-        title: 'Invalid OTP',
-        message: 'Please enter the complete 6-digit code'
+        type: "error",
+        title: "Invalid OTP",
+        message: "Please enter the complete 6-digit code",
       });
       return;
     }
@@ -62,16 +62,16 @@ export function VerifyOTP() {
     try {
       await verifyOTP(otpCode);
       addToast({
-        type: 'success',
-        title: 'Verification Successful!',
-        message: 'Welcome to BrickSure'
+        type: "success",
+        title: "Verification Successful!",
+        message: "Welcome to BrickSure",
       });
-      navigate('/dashboard');
+      navigate("/dashboard");
     } catch (error) {
       addToast({
-        type: 'error',
-        title: 'Verification Failed',
-        message: error instanceof Error ? error.message : 'Invalid OTP code'
+        type: "error",
+        title: "Verification Failed",
+        message: error instanceof Error ? error.message : "Invalid OTP code",
       });
     } finally {
       setLoading(false);
@@ -82,18 +82,18 @@ export function VerifyOTP() {
     setResendLoading(true);
     try {
       // Simulate resend API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setCountdown(60);
       addToast({
-        type: 'success',
-        title: 'OTP Resent',
-        message: 'A new verification code has been sent'
+        type: "success",
+        title: "OTP Resent",
+        message: "A new verification code has been sent",
       });
     } catch (error) {
       addToast({
-        type: 'error',
-        title: 'Resend Failed',
-        message: 'Please try again'
+        type: "error",
+        title: "Resend Failed",
+        message: "Please try again",
       });
     } finally {
       setResendLoading(false);
@@ -107,13 +107,13 @@ export function VerifyOTP() {
           <Card className="p-8">
             <div className="text-center mb-8">
               <button
-                onClick={() => navigate('/register')}
+                onClick={() => navigate("/register")}
                 className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Registration
               </button>
-              
+
               <Shield className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Verify Your Phone
@@ -121,11 +121,12 @@ export function VerifyOTP() {
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Enter the 6-digit code sent to your phone
               </p>
-              
+
               {/* Demo hint */}
               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
-                  Demo Mode: Use OTP code <span className="font-mono font-bold">099887</span>
+                  Use OTP code{" "}
+                  <span className="font-mono font-bold">099887</span>
                 </p>
               </div>
             </div>
