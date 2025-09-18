@@ -97,3 +97,43 @@ export interface Notification {
   read: boolean;
   createdAt: string;
 }
+
+// Auth types
+// export interface User {
+//   id: string;
+//   name: string;
+//   email: string;
+//   phone: string;
+//   kycStatus: string;
+//   createdAt: string;
+// }
+
+export interface AuthResponse {
+  ok: boolean;
+  data: {
+    token?: string;
+    user?: User;
+    message?: string;
+  };
+  error?: {
+    message: string;
+  };
+}
+
+export interface SignUpRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface VerifyOtpRequest {
+  code: string;
+  email?: string;
+}

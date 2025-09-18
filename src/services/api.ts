@@ -1,127 +1,33 @@
-import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Env': 'sandbox' // Will be configurable
-  }
+// Custom base query with auth token handling and error handling
+const baseQueryWithAuth = fetchBaseQuery({
+  baseUrl: import.meta.env.VITE_API_URL || 'https://bricksure-api.onrender.com',
+  prepareHeaders: (headers) => {
+    const token = localStorage.getItem('bricksure-token');
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
+    headers.set('Content-Type', 'application/json');
+    return headers;
+  },
 });
 
-// Add request interceptor for auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('bricksure-token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Enhanced base query with error handling
+const baseQueryWithErrorHandling = async (args: any, api: any, extraOptions: any) => {
+  const result = await baseQueryWithAuth(args, api, extraOptions);
+  
+  if (result.error && result.error.status === 401) {
+    localStorage.removeItem('bricksure-token');
+    window.location.href = '/login';
   }
-  return config;
+  
+  return result;
+};
+
+export const api = createApi({
+  reducerPath: 'api',
+  baseQuery: baseQueryWithErrorHandling,
+  tagTypes: ['User', 'Property', 'Quote', 'Policy', 'Wallet', 'Transaction'],
+  endpoints: () => ({}),
 });
-
-// Add response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('bricksure-token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Mock API responses for development and demo
-if (import.meta.env.DEV || !import.meta.env.VITE_API_URL) {
-  const mock = new MockAdapter(api, { delayResponse: 1000 });
-
-  // Auth endpoints
-  mock.onPost('/auth/register').reply(200, { ok: true, data: { message: 'Registration successful' } });
-  mock.onPost('/auth/login').reply(200, { 
-    ok: true, 
-    data: { 
-      token: 'mock-jwt-token',
-      user: {
-        id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        name: 'John Doe',
-        email: 'john@example.com',
-        phone: '+2348012345678',
-        kycStatus: 'pending',
-        createdAt: new Date().toISOString()
-      }
-    }
-  });
-  mock.onPost('/auth/otp/verify').reply((config) => {
-    const data = JSON.parse(config.data);
-    const { code } = data;
-    
-    // Only accept the static OTP: 099887
-    if (code !== '099887') {
-      return [400, { 
-        ok: false, 
-        error: { 
-          message: 'Invalid OTP code. Please enter the correct verification code.' 
-        } 
-      }];
-    }
-    
-    return [200, { 
-      ok: true, 
-      data: { 
-        token: 'mock-jwt-token',
-        user: {
-          id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          name: 'John Doe',
-          email: 'john@example.com',
-          phone: '+2348012345678',
-          kycStatus: 'verified',
-          createdAt: new Date().toISOString()
-        }
-      }
-    }];
-  });
-
-  // Profile endpoints
-  mock.onGet('/profile/me').reply(200, {
-    ok: true,
-    data: {
-      id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-      name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+2348012345678',
-      kycStatus: 'verified',
-      createdAt: new Date().toISOString()
-    }
-  });
-
-  // Properties endpoints
-  mock.onGet('/properties').reply(200, { ok: true, data: [] });
-  mock.onPost('/properties').reply(200, { ok: true, data: { id: '1' } });
-
-  // Quotes endpoints
-  mock.onPost('/quotes').reply(200, { 
-    ok: true, 
-    data: {
-      id: '1',
-      propertyId: '1',
-      tier: 'standard',
-      riders: ['fire', 'flood'],
-      premium: 25000,
-      frequency: 'annual',
-      createdAt: new Date().toISOString()
-    }
-  });
-
-  // Policies endpoints
-  mock.onGet('/policies').reply(200, { ok: true, data: [] });
-
-  // Wallet endpoints
-  mock.onGet('/wallet').reply(200, { 
-    ok: true, 
-    data: { balance: 0, currency: 'NGN' }
-  });
-  mock.onGet('/wallet/transactions').reply(200, { ok: true, data: [] });
-
-  // Notifications
-  mock.onGet('/notifications').reply(200, { ok: true, data: [] });
-}
