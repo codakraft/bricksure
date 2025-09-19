@@ -1,70 +1,111 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, MapPin, Camera, Calendar, MoreVertical } from 'lucide-react';
-import { Layout } from '../../components/Layout/Layout';
-import { Card } from '../../components/UI/Card';
-import { Button } from '../../components/UI/Button';
-import { ApplicationTracker } from './ApplicationTracker';
+import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, MapPin, Camera, Calendar, MoreVertical } from "lucide-react";
+import { Layout } from "../../components/Layout/Layout";
+import { Card } from "../../components/UI/Card";
+import { Button } from "../../components/UI/Button";
+import { ApplicationTracker } from "./ApplicationTracker";
+import { useGetPropertiesQuery } from "../../services";
 
 export function Properties() {
-  const [properties] = useState([
-    {
-      id: '1',
-      address: '15 Admiralty Way, Lekki Phase 1, Lagos',
-      type: 'owner',
-      status: 'approved',
-      yearBuilt: 2018,
-      images: 3,
-      lastUpdated: '2024-01-15',
-      premium: 25000
-    },
-    {
-      id: '2',
-      address: '42 Allen Avenue, Ikeja, Lagos',
-      type: 'rental',
-      status: 'pending',
-      yearBuilt: 2015,
-      images: 2,
-      lastUpdated: '2024-01-10',
-      premium: null
-    }
-  ]);
+  const navigate = useNavigate();
+  const { data: propertiesData, isLoading } = useGetPropertiesQuery();
 
-  // Mock pending application data
-  const pendingApplication = {
-    id: 'APP-2024-002',
-    status: 'approval' as const,
-    submittedDate: '2024-01-10T14:20:00Z',
-    propertyAddress: '42 Allen Avenue, Ikeja, Lagos'
+  const properties = useMemo(() => {
+    if (!propertiesData?.data) return [];
+
+    return propertiesData.data.map((property) => ({
+      id: property._id,
+      address: property.address,
+      type: property.occupancyStatus, // Using occupancyStatus as type
+      status: property.status,
+      yearBuilt: property.year,
+      images: 0, // Default to 0 since images aren't in API response
+      lastUpdated: property.updatedAt,
+      premium: property.totalAmount,
+      policyCode: property.policyCode,
+      propertyType: property.propertyType,
+    }));
+  }, [propertiesData]);
+
+  // Get the most recent pending application for ApplicationTracker
+  const pendingApplication = useMemo(() => {
+    if (!properties.length) return null;
+
+    const pendingProperty = properties.find((p) => p.status === "pending");
+    if (!pendingProperty) return null;
+
+    const mapStatus = (
+      propertyStatus: string
+    ): "pending-review" | "underwriting" | "approval" | "approved" => {
+      switch (propertyStatus.toLowerCase()) {
+        case "pending":
+          return "pending-review";
+        case "approved":
+          return "approved";
+        case "underwriting":
+          return "underwriting";
+        case "approval":
+          return "approval";
+        default:
+          return "pending-review";
+      }
+    };
+
+    return {
+      id: pendingProperty.policyCode || pendingProperty.id,
+      status: mapStatus(pendingProperty.status),
+      submittedDate: pendingProperty.lastUpdated,
+      propertyAddress: pendingProperty.address,
+    };
+  }, [properties]);
+
+  // Navigation helpers
+  const handleViewProperty = (propertyId: string) => {
+    navigate(`/dashboard/properties/${propertyId}/details`);
+  };
+
+  const handleGetQuote = () => {
+    navigate("/dashboard/quote");
+  };
+
+  const handleAddProperty = () => {
+    navigate("/dashboard/properties/new");
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+      case "approved":
+        return "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400";
+      case "draft":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
     }
   };
 
   const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'owner':
-        return 'Owner-Occupied';
-      case 'rental':
-        return 'Rental Property';
-      case 'shortlet':
-        return 'Short-let';
-      case 'commercial':
-        return 'Commercial';
-      case 'development':
-        return 'Under Development';
+    switch (type?.toLowerCase()) {
+      case "owner":
+      case "owner-occupied":
+        return "Owner-Occupied";
+      case "rental":
+      case "rented":
+        return "Rental Property";
+      case "shortlet":
+      case "short-let":
+        return "Short-let";
+      case "commercial":
+        return "Commercial";
+      case "development":
+      case "under development":
+        return "Under Development";
+      case "vacant":
+        return "Vacant";
       default:
-        return type;
+        return type || "Unknown";
     }
   };
 
@@ -82,25 +123,46 @@ export function Properties() {
                 Manage your property portfolio
               </p>
             </div>
-            <Button asChild>
-              <Link to="/dashboard/properties/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Property
-              </Link>
+            <Button onClick={handleAddProperty}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Property
             </Button>
           </div>
 
           {/* Show Application Tracker for pending applications */}
-          <div className="mb-8">
-            <ApplicationTracker
-              status={pendingApplication.status}
-              applicationId={pendingApplication.id}
-              submittedDate={pendingApplication.submittedDate}
-              propertyAddress={pendingApplication.propertyAddress}
-            />
-          </div>
+          {pendingApplication && (
+            <div className="mb-8">
+              <ApplicationTracker
+                status={pendingApplication.status}
+                applicationId={pendingApplication.id}
+                submittedDate={pendingApplication.submittedDate}
+                propertyAddress={pendingApplication.propertyAddress}
+              />
+            </div>
+          )}
 
-          {properties.length === 0 ? (
+          {isLoading ? (
+            /* Loading State */
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[1, 2, 3].map((index) => (
+                <Card key={index} className="overflow-hidden">
+                  <div className="h-48 bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-20"></div>
+                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </div>
+                    <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-1/2"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-2/3"></div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : properties.length === 0 ? (
             /* Empty State */
             <Card className="p-12 text-center">
               <div className="max-w-md mx-auto">
@@ -113,10 +175,8 @@ export function Properties() {
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                   Add your first property to get started with insurance quotes
                 </p>
-                <Button asChild>
-                  <Link to="/dashboard/properties/new">
-                    Add Your First Property
-                  </Link>
+                <Button onClick={handleAddProperty}>
+                  Add Your First Property
                 </Button>
               </div>
             </Card>
@@ -124,17 +184,25 @@ export function Properties() {
             /* Properties Grid */
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {properties.map((property) => (
-                <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <Card
+                  key={property.id}
+                  className="overflow-hidden hover:shadow-lg transition-shadow"
+                >
                   {/* Property Image Placeholder */}
                   <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
                     <Camera className="h-12 w-12 text-gray-400" />
                   </div>
-                  
+
                   <div className="p-6">
                     {/* Status Badge */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(property.status)}`}>
-                        {property.status.charAt(0).toUpperCase() + property.status.slice(1)}
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                          property.status
+                        )}`}
+                      >
+                        {property.status.charAt(0).toUpperCase() +
+                          property.status.slice(1)}
                       </span>
                       <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
                         <MoreVertical className="h-4 w-4 text-gray-500" />
@@ -165,7 +233,9 @@ export function Properties() {
                     {/* Premium */}
                     {property.premium && (
                       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Annual Premium</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Annual Premium
+                        </p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           ₦{property.premium.toLocaleString()}
                         </p>
@@ -174,16 +244,21 @@ export function Properties() {
 
                     {/* Actions */}
                     <div className="mt-6 flex space-x-2">
-                      <Button size="sm" variant="outline" className="flex-1" asChild>
-                        <Link to={`/dashboard/properties/${property.id}/details`}>
-                          View Details
-                        </Link>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleViewProperty(property.id)}
+                      >
+                        View Details
                       </Button>
-                      {property.status === 'approved' && (
-                        <Button size="sm" className="flex-1" asChild>
-                          <Link to="/dashboard/quote">
-                            Get Quote
-                          </Link>
+                      {property.status === "approved" && (
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleGetQuote}
+                        >
+                          Get Quote
                         </Button>
                       )}
                     </div>

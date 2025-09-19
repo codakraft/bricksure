@@ -1,127 +1,94 @@
-import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
+import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import EncryptionService from "../utils/encryptionService";
+import { RootState } from "../store/store";
 
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Env': 'sandbox' // Will be configurable
-  }
+// Initialize encryption service
+const encryptionService = new EncryptionService();
+
+// Environment variables for encryption keys (matching backend variable names)
+const ENCRYPTION_KEY =
+  import.meta.env.VITE_ENCRYPTION_SERVICE_KEY || "default-encryption-key-2023";
+const IV_KEY = import.meta.env.VITE_IV_KEY || "default-iv-key-16";
+
+// Custom base query with auth token handling and error handling
+const baseQueryWithAuth = fetchBaseQuery({
+  baseUrl: import.meta.env.VITE_API_URL || "https://bricksure-api.onrender.com",
+  prepareHeaders: (headers, { getState }) => {
+    const localToken = localStorage.getItem("bricksure-token");
+    const { token } = (getState() as RootState).auth;
+    console.log("Preparing headers with token:", token, localToken);
+    if (token) {
+      headers.set("authorization", `Bearer ${token || localToken}`);
+    }
+    headers.set("Content-Type", "application/json");
+    return headers;
+  },
 });
 
-// Add request interceptor for auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('bricksure-token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Enhanced base query with encryption/decryption and error handling
+const baseQueryWithErrorHandling = async (
+  args: any,
+  api: any,
+  extraOptions: any
+) => {
+  let modifiedArgs = { ...args };
+
+  // Encrypt request body for POST and PUT requests
+  if (args.body && (args.method === "POST" || args.method === "PUT")) {
+    try {
+      const bodyString =
+        typeof args.body === "string" ? args.body : JSON.stringify(args.body);
+      const encryptedBody = await encryptionService.encrypt(
+        bodyString,
+        ENCRYPTION_KEY,
+        IV_KEY
+      );
+      modifiedArgs = {
+        ...args,
+        body: { data: encryptedBody },
+      };
+    } catch (error) {
+      console.error("Encryption error:", error);
+      // If encryption fails, proceed with original request
+    }
   }
-  return config;
+
+  const result = await baseQueryWithAuth(modifiedArgs, api, extraOptions);
+
+  // Handle 401 errors
+  if (result.error && result.error.status === 401) {
+    localStorage.removeItem("bricksure-token");
+    window.location.href = "/login";
+    return result;
+  }
+
+  // Decrypt response data if present
+  // console.log("Raw response data:", result.data.data, typeof result.data);
+  if (result.data && typeof result.data === "object") {
+    // console.log("Raw response data:", result.data, typeof result.data);
+    try {
+      const decryptedData = await encryptionService.decrypt(
+        result.data.data,
+        ENCRYPTION_KEY,
+        IV_KEY
+      );
+      console.log("Decrypted response data:", decryptedData);
+      return {
+        ...result,
+        data: JSON.parse(decryptedData),
+      };
+    } catch (error) {
+      console.error("Decryption error:", error);
+      // If decryption fails, return original response
+    }
+  }
+
+  return result;
+};
+
+export const api = createApi({
+  reducerPath: "api",
+  baseQuery: baseQueryWithErrorHandling,
+  tagTypes: ["User", "Property", "Quote", "Policy", "Wallet", "Transaction"],
+  endpoints: () => ({}),
 });
-
-// Add response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('bricksure-token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Mock API responses for development and demo
-if (import.meta.env.DEV || !import.meta.env.VITE_API_URL) {
-  const mock = new MockAdapter(api, { delayResponse: 1000 });
-
-  // Auth endpoints
-  mock.onPost('/auth/register').reply(200, { ok: true, data: { message: 'Registration successful' } });
-  mock.onPost('/auth/login').reply(200, { 
-    ok: true, 
-    data: { 
-      token: 'mock-jwt-token',
-      user: {
-        id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        name: 'John Doe',
-        email: 'john@example.com',
-        phone: '+2348012345678',
-        kycStatus: 'pending',
-        createdAt: new Date().toISOString()
-      }
-    }
-  });
-  mock.onPost('/auth/otp/verify').reply((config) => {
-    const data = JSON.parse(config.data);
-    const { code } = data;
-    
-    // Only accept the static OTP: 099887
-    if (code !== '099887') {
-      return [400, { 
-        ok: false, 
-        error: { 
-          message: 'Invalid OTP code. Please enter the correct verification code.' 
-        } 
-      }];
-    }
-    
-    return [200, { 
-      ok: true, 
-      data: { 
-        token: 'mock-jwt-token',
-        user: {
-          id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          name: 'John Doe',
-          email: 'john@example.com',
-          phone: '+2348012345678',
-          kycStatus: 'verified',
-          createdAt: new Date().toISOString()
-        }
-      }
-    }];
-  });
-
-  // Profile endpoints
-  mock.onGet('/profile/me').reply(200, {
-    ok: true,
-    data: {
-      id: 'USR-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-      name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+2348012345678',
-      kycStatus: 'verified',
-      createdAt: new Date().toISOString()
-    }
-  });
-
-  // Properties endpoints
-  mock.onGet('/properties').reply(200, { ok: true, data: [] });
-  mock.onPost('/properties').reply(200, { ok: true, data: { id: '1' } });
-
-  // Quotes endpoints
-  mock.onPost('/quotes').reply(200, { 
-    ok: true, 
-    data: {
-      id: '1',
-      propertyId: '1',
-      tier: 'standard',
-      riders: ['fire', 'flood'],
-      premium: 25000,
-      frequency: 'annual',
-      createdAt: new Date().toISOString()
-    }
-  });
-
-  // Policies endpoints
-  mock.onGet('/policies').reply(200, { ok: true, data: [] });
-
-  // Wallet endpoints
-  mock.onGet('/wallet').reply(200, { 
-    ok: true, 
-    data: { balance: 0, currency: 'NGN' }
-  });
-  mock.onGet('/wallet/transactions').reply(200, { ok: true, data: [] });
-
-  // Notifications
-  mock.onGet('/notifications').reply(200, { ok: true, data: [] });
-}

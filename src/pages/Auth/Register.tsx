@@ -1,57 +1,66 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
-import { Layout } from '../../components/Layout/Layout';
-import { Card } from '../../components/UI/Card';
-import { Input } from '../../components/UI/Input';
-import { Button } from '../../components/UI/Button';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../components/UI/Toast';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
+import { Layout } from "../../components/Layout/Layout";
+import { Card } from "../../components/UI/Card";
+import { Input } from "../../components/UI/Input";
+import { Button } from "../../components/UI/Button";
+// import { useAuth } from "../../hooks/useAuth";
+import { useToast } from "../../components/UI/Toast";
+import { useSignUpMutation } from "../../services";
 
 export function Register() {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: ''
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    password: "",
+    confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  
-  const { register } = useAuth();
+  const [signUp] = useSignUpMutation();
+
+  // const { register } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Full name is required';
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = "First name is required";
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = "Last name is required";
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = "Email is invalid";
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^(\+234|0)[789]\d{9}$/.test(formData.phone.replace(/\s/g, ''))) {
-      newErrors.phone = 'Enter a valid Nigerian phone number';
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = "Phone number is required";
+    } else if (
+      !/^(\+234|0)[789]\d{9}$/.test(formData.phoneNumber.replace(/\s/g, ""))
+    ) {
+      newErrors.phoneNumber = "Enter a valid Nigerian phone number";
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+      newErrors.password = "Password must be at least 8 characters";
     }
 
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = "Passwords do not match";
     }
 
     setErrors(newErrors);
@@ -60,23 +69,33 @@ export function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setLoading(true);
+    const data = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phoneNumber: formData.phoneNumber,
+      password: formData.password,
+    };
     try {
-      await register(formData.name, formData.email, formData.phone, formData.password);
-      addToast({
-        type: 'success',
-        title: 'Registration Successful',
-        message: 'Please check your phone for the verification code'
-      });
-      navigate('/verify-otp');
+      const resp = await signUp(data).unwrap();
+      console.log("Registration response:", resp.token);
+      if (resp.token) {
+        addToast({
+          type: "success",
+          title: "Registration Successful",
+          message: "Please check your phone for the verification code",
+        });
+        navigate("/verify-otp");
+      }
     } catch (error) {
       addToast({
-        type: 'error',
-        title: 'Registration Failed',
-        message: error instanceof Error ? error.message : 'Please try again'
+        type: "error",
+        title: "Registration Failed",
+        message: error instanceof Error ? error.message : "Please try again",
       });
     } finally {
       setLoading(false);
@@ -85,9 +104,9 @@ export function Register() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
@@ -107,13 +126,24 @@ export function Register() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <Input
-                label="Full Name"
-                name="name"
+                label="First Name"
+                name="firstName"
                 type="text"
-                value={formData.name}
+                value={formData.firstName}
                 onChange={handleChange}
-                error={errors.name}
-                placeholder="Enter your full name"
+                error={errors.firstName}
+                placeholder="Enter your first name"
+                required
+              />
+
+              <Input
+                label="Last Name"
+                name="lastName"
+                type="text"
+                value={formData.lastName}
+                onChange={handleChange}
+                error={errors.lastName}
+                placeholder="Enter your last name"
                 required
               />
 
@@ -130,11 +160,11 @@ export function Register() {
 
               <Input
                 label="Phone Number"
-                name="phone"
+                name="phoneNumber"
                 type="tel"
-                value={formData.phone}
+                value={formData.phoneNumber}
                 onChange={handleChange}
-                error={errors.phone}
+                error={errors.phoneNumber}
                 placeholder="+234 812 345 6789"
                 help="We'll send an SMS verification code to this number"
                 required
@@ -144,7 +174,7 @@ export function Register() {
                 <Input
                   label="Password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleChange}
                   error={errors.password}
@@ -157,7 +187,11 @@ export function Register() {
                   className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
 
@@ -165,7 +199,7 @@ export function Register() {
                 <Input
                   label="Confirm Password"
                   name="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
+                  type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   error={errors.confirmPassword}
@@ -177,7 +211,11 @@ export function Register() {
                   className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
 
@@ -188,7 +226,9 @@ export function Register() {
 
             <div className="mt-6">
               <div className="text-center">
-                <span className="text-gray-600 dark:text-gray-400">Already have an account? </span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Already have an account?{" "}
+                </span>
                 <Link
                   to="/login"
                   className="text-blue-600 dark:text-blue-400 hover:underline font-medium"

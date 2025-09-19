@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Shield, ArrowLeft } from "lucide-react";
 import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
 import { Button } from "../../components/UI/Button";
-import { useAuth } from "../../hooks/useAuth";
+// import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../components/UI/Toast";
+import {
+  useLazyResendVerifyEmailQuery,
+  useVerifyEmailMutation,
+} from "../../services/authService";
 
 export function VerifyOTP() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
+  const [verifyEmail] = useVerifyEmailMutation();
+  const [resendVerifyEmail] = useLazyResendVerifyEmailQuery();
+  const { pageName } = useParams<{ pageName?: string }>();
 
-  const { verifyOTP } = useAuth();
+  // const { verifyOTP } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -23,6 +30,15 @@ export function VerifyOTP() {
       return () => clearTimeout(timer);
     }
   }, [countdown]);
+
+  useEffect(() => {
+    async function handleResendIfLogin() {
+      if (pageName === "login") {
+        await resendVerifyEmail();
+      }
+    }
+    handleResendIfLogin();
+  }, [pageName]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (value.length <= 1 && /^\d*$/.test(value)) {
@@ -45,6 +61,14 @@ export function VerifyOTP() {
     }
   };
 
+  const handleBackNavigation = () => {
+    if (pageName === "login") {
+      navigate("/login");
+    } else {
+      navigate("/register");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const otpCode = otp.join("");
@@ -60,13 +84,15 @@ export function VerifyOTP() {
 
     setLoading(true);
     try {
-      await verifyOTP(otpCode);
-      addToast({
-        type: "success",
-        title: "Verification Successful!",
-        message: "Welcome to BrickSure",
-      });
-      navigate("/dashboard");
+      const res = await verifyEmail({ otp: otpCode }).unwrap();
+      if (res.message) {
+        addToast({
+          type: "success",
+          title: "Verification Successful!",
+          message: "Welcome to BrickSure",
+        });
+        navigate("/dashboard");
+      }
     } catch (error) {
       addToast({
         type: "error",
@@ -89,7 +115,7 @@ export function VerifyOTP() {
         title: "OTP Resent",
         message: "A new verification code has been sent",
       });
-    } catch (error) {
+    } catch {
       addToast({
         type: "error",
         title: "Resend Failed",
@@ -107,19 +133,20 @@ export function VerifyOTP() {
           <Card className="p-8">
             <div className="text-center mb-8">
               <button
-                onClick={() => navigate("/register")}
+                onClick={handleBackNavigation}
                 className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Registration
+                Back to {pageName === "login" ? "Login" : "Registration"}
               </button>
 
               <Shield className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Verify Your Phone
+                Verify Your Email
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Enter the 6-digit code sent to your phone
+                Enter the 6-digit code sent to your email
+                {pageName === "login" && " to complete sign in"}
               </p>
 
               {/* Demo hint */}

@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Shield, Menu, X, Sun, Moon, Bell, User } from 'lucide-react';
-import { Button } from '../UI/Button';
-import { useTheme } from '../../hooks/useTheme';
-import { useAuth } from '../../hooks/useAuth';
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Shield, Menu, X, Sun, Moon, Bell, User } from "lucide-react";
+import { Button } from "../UI/Button";
+import { useTheme } from "../../hooks/useTheme";
+import { useAuth } from "../../hooks/useAuth";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../../store/store";
+import { logout } from "../../services/authSlice";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAuthenticated } = useAuth();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  // const { user, logout, isAuthenticated } = useAuth();
+  const { isAuthenticated, authData: user } = useSelector(
+    (state: RootState) => state.auth
+  );
   const location = useLocation();
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/");
+  };
 
   const isActivePath = (path: string) => location.pathname === path;
 
   const navLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/how-it-works', label: 'How It Works' },
-    { href: '/coverage', label: 'Coverage & Pricing' },
-    { href: '/community-risk-insights', label: 'Community & Risk Insights' },
-    { href: '/faq', label: 'FAQ' },
-    { href: '/contact', label: 'Contact' }
+    { href: "/", label: "Home" },
+    { href: "/how-it-works", label: "How It Works" },
+    { href: "/coverage", label: "Coverage & Pricing" },
+    { href: "/community-risk-insights", label: "Community & Risk Insights" },
+    { href: "/faq", label: "FAQ" },
+    { href: "/contact", label: "Contact" },
   ];
 
   return (
@@ -27,7 +40,10 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 hover:scale-105 transition-transform duration-200">
+          <Link
+            to="/"
+            className="flex items-center space-x-2 hover:scale-105 transition-transform duration-200"
+          >
             <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             <div className="flex flex-col">
               <span className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
@@ -41,19 +57,20 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-12 ml-16">
-            {!isAuthenticated && navLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className={`text-sm font-medium transition-all duration-300 hover:text-blue-600 dark:hover:text-blue-400 hover:scale-110 hover:-translate-y-0.5 ${
-                  isActivePath(link.href)
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {!isAuthenticated &&
+              navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  className={`text-sm font-medium transition-all duration-300 hover:text-blue-600 dark:hover:text-blue-400 hover:scale-110 hover:-translate-y-0.5 ${
+                    isActivePath(link.href)
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
           </nav>
 
           {/* Actions */}
@@ -64,7 +81,7 @@ export function Header() {
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Toggle theme"
             >
-              {theme === 'light' ? (
+              {theme === "light" ? (
                 <Moon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
               ) : (
                 <Sun className="h-5 w-5 text-gray-700 dark:text-gray-300" />
@@ -82,19 +99,19 @@ export function Header() {
                 {/* User Menu */}
                 <div className="relative">
                   <div className="flex items-center space-x-2">
-                    <Link 
-                      to="/dashboard" 
+                    <Link
+                      to="/dashboard"
                       className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors hover:scale-105 duration-200"
                     >
                       <User className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                        {user?.name}
+                        {user?.email || "User"}
                       </span>
                     </Link>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={logout}
+                      onClick={handleLogout}
                       className="ml-2"
                     >
                       Sign Out
@@ -138,21 +155,22 @@ export function Header() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800">
             <nav className="flex flex-col space-y-4">
-              {!isAuthenticated && navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  className={`text-sm font-medium transition-colors ${
-                    isActivePath(link.href)
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              
+              {!isAuthenticated &&
+                navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    to={link.href}
+                    className={`text-sm font-medium transition-colors ${
+                      isActivePath(link.href)
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-700 dark:text-gray-300"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+
               {!isAuthenticated && (
                 <div className="flex flex-col space-y-2 pt-4">
                   <Link
@@ -171,7 +189,7 @@ export function Header() {
                   </Link>
                 </div>
               )}
-              
+
               {isAuthenticated && (
                 <div className="flex flex-col space-y-2 pt-4">
                   <Link
@@ -185,7 +203,7 @@ export function Header() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      logout();
+                      handleLogout();
                       setMobileMenuOpen(false);
                     }}
                     className="w-full"
