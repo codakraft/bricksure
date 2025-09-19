@@ -1,4 +1,10 @@
-import { AuthResponse, LoginRequest, SignUpRequest, VerifyOtpRequest } from "../types";
+import {
+  AuthResponse,
+  LoginRequest,
+  SignUpRequest,
+  VerifyEmailResponse,
+  VerifyOtpRequest,
+} from "../types";
 import { api } from "./api";
 
 // Auth API endpoints
@@ -11,25 +17,24 @@ export const authApi = api.injectEndpoints({
         body,
       }),
     }),
-    register: builder.mutation<AuthResponse, SignUpRequest>({
-      query: (body) => ({
-        url: "/auth/register",
-        method: "POST",
-        body,
-      }),
-    }),
     login: builder.mutation<AuthResponse, LoginRequest>({
       query: (body) => ({
-        url: "/auth/login",
+        url: "/api/v1/auth/login",
         method: "POST",
         body,
       }),
     }),
-    verifyOtp: builder.mutation<AuthResponse, VerifyOtpRequest>({
+    verifyEmail: builder.mutation<VerifyEmailResponse, VerifyOtpRequest>({
       query: (body) => ({
-        url: "/auth/otp/verify",
+        url: "/api/v1/auth/verify-email",
         method: "POST",
         body,
+      }),
+    }),
+    resendVerifyEmail: builder.query<VerifyEmailResponse, void>({
+      query: () => ({
+        url: "/api/v1/auth/resend-email-otp",
+        method: "GET",
       }),
     }),
   }),
@@ -38,7 +43,7 @@ export const authApi = api.injectEndpoints({
 
 export const {
   useSignUpMutation,
-  useRegisterMutation,
   useLoginMutation,
-  useVerifyOtpMutation,
+  useVerifyEmailMutation,
+  useLazyResendVerifyEmailQuery,
 } = authApi;

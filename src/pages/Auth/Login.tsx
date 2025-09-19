@@ -1,23 +1,25 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
-import { Layout } from '../../components/Layout/Layout';
-import { Card } from '../../components/UI/Card';
-import { Input } from '../../components/UI/Input';
-import { Button } from '../../components/UI/Button';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../components/UI/Toast';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
+import { Layout } from "../../components/Layout/Layout";
+import { Card } from "../../components/UI/Card";
+import { Input } from "../../components/UI/Input";
+import { Button } from "../../components/UI/Button";
+// import { useAuth } from '../../hooks/useAuth';
+import { useToast } from "../../components/UI/Toast";
+import { useLoginMutation } from "../../services";
 
 export function Login() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  
-  const { login } = useAuth();
+  const [login] = useLoginMutation();
+
+  // const { login } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -25,13 +27,13 @@ export function Login() {
     const newErrors: Record<string, string> = {};
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = "Email is invalid";
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     }
 
     setErrors(newErrors);
@@ -40,23 +42,36 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setLoading(true);
     try {
-      await login(formData.email, formData.password);
-      addToast({
-        type: 'success',
-        title: 'Welcome back!',
-        message: 'You have been signed in successfully'
-      });
-      navigate('/dashboard');
+      const res = await login({
+        email: formData.email,
+        password: formData.password,
+      }).unwrap();
+      console.log("Login successful:", res);
+      if (!res?.data.isVerified) {
+        navigate("/verify-otp/login");
+        return;
+      }
+      if (res?.data) {
+        addToast({
+          type: "success",
+          title: "Welcome back!",
+          message: "You have been signed in successfully",
+        });
+        navigate("/dashboard");
+      }
     } catch (error) {
       addToast({
-        type: 'error',
-        title: 'Sign In Failed',
-        message: error instanceof Error ? error.message : 'Please check your credentials'
+        type: "error",
+        title: "Sign In Failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Please check your credentials",
       });
     } finally {
       setLoading(false);
@@ -65,9 +80,9 @@ export function Login() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
@@ -101,7 +116,7 @@ export function Login() {
                 <Input
                   label="Password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleChange}
                   error={errors.password}
@@ -113,7 +128,11 @@ export function Login() {
                   className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
 
@@ -142,7 +161,9 @@ export function Login() {
 
             <div className="mt-6">
               <div className="text-center">
-                <span className="text-gray-600 dark:text-gray-400">Don't have an account? </span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Don't have an account?{" "}
+                </span>
                 <Link
                   to="/register"
                   className="text-blue-600 dark:text-blue-400 hover:underline font-medium"

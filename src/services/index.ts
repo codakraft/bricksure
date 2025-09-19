@@ -1,9 +1,9 @@
 // Export all API hooks from one place for easy importing
 export { 
   useSignUpMutation,
-  useRegisterMutation,
   useLoginMutation,
-  useVerifyOtpMutation,
+  useVerifyEmailMutation,
+  useLazyResendVerifyEmailQuery,
 } from './authService';
 
 export { 
@@ -31,3 +31,7 @@ export {
 export { 
   useGetNotificationsQuery,
 } from './notificationsService';
+
+// Export auth slice
+export { default as authReducer } from './authSlice';
+export * from './authSlice';

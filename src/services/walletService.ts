@@ -1,36 +1,59 @@
+import {
+  FundWalletResponse,
+  GetAllTransactionsResponse,
+  WalletResponse,
+} from "../types";
 import { api } from "./api";
-
-// Wallet types
-interface Wallet {
-  balance: number;
-  currency: string;
-}
-
-interface Transaction {
-  id: string;
-  type: string;
-  amount: number;
-  description: string;
-  date: string;
-  status: string;
-}
 
 // Wallet API endpoints
 export const walletApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    getWallet: builder.query<{ ok: boolean; data: Wallet }, void>({
-      query: () => '/wallet',
-      providesTags: ['Wallet'],
+    getWallet: builder.query<WalletResponse, void>({
+      query: () => ({
+        url: "/api/v1/wallet",
+        method: "GET",
+      }),
     }),
-    getWalletTransactions: builder.query<{ ok: boolean; data: Transaction[] }, void>({
-      query: () => '/wallet/transactions',
-      providesTags: ['Transaction'],
+    fundWallet: builder.mutation<
+      FundWalletResponse,
+      {
+        amount: number;
+        email: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/api/v1/wallet/fund/paystack",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Wallet"],
+    }),
+    fundWalletByEmbeddly: builder.mutation<
+      FundWalletResponse,
+      {
+        amount: number;
+        email: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/api/v1/wallet/fund/paystack",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Wallet"],
+    }),
+    getWalletTransactions: builder.query<GetAllTransactionsResponse, void>({
+      query: () => ({
+        url: "/api/v1/wallet/transaction/view-all",
+        method: "GET",
+      }),
+      providesTags: ["Transaction"],
     }),
   }),
-  overrideExisting: false,
 });
 
-export const { 
+export const {
   useGetWalletQuery,
   useGetWalletTransactionsQuery,
+  useFundWalletMutation,
 } = walletApi;

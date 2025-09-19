@@ -1,25 +1,17 @@
+import { PolicyResponse } from "../types";
 import { api } from "./api";
 
-// Policy types
-interface Policy {
-  id: string;
-  propertyId: string;
-  status: string;
-  premium: number;
-  coverage: string;
-  startDate: string;
-  endDate: string;
-}
 
 // Policies API endpoints
 export const policiesApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    getPolicies: builder.query<{ ok: boolean; data: Policy[] }, void>({
-      query: () => '/policies',
-      providesTags: ['Policy'],
+    getPolicies: builder.query<PolicyResponse, void>({
+      query: () => ({
+        url: '/api/v1/property/policy',
+      method: 'GET',
+      }),
     }),
   }),
-  overrideExisting: false,
 });
 
 export const { 

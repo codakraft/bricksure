@@ -1,37 +1,19 @@
+import { CreateQuoteRequest, CreateQuoteResponse } from "../types";
 import { api } from "./api";
-
-// Quote types
-interface Quote {
-  id: string;
-  propertyId: string;
-  tier: string;
-  riders: string[];
-  premium: number;
-  frequency: string;
-  createdAt: string;
-}
-
-interface CreateQuoteRequest {
-  propertyId: string;
-  tier: string;
-  riders: string[];
-}
 
 // Quotes API endpoints
 export const quotesApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    createQuote: builder.mutation<{ ok: boolean; data: Quote }, CreateQuoteRequest>({
+    createQuote: builder.mutation<CreateQuoteResponse, CreateQuoteRequest>({
       query: (body) => ({
-        url: '/quotes',
-        method: 'POST',
+        url: "/api/v1/property/quote",
+        method: "POST",
         body,
       }),
-      invalidatesTags: ['Quote'],
+      invalidatesTags: ["Quote"],
     }),
   }),
   overrideExisting: false,
 });
 
-export const { 
-  useCreateQuoteMutation,
-} = quotesApi;
+export const { useCreateQuoteMutation } = quotesApi;
