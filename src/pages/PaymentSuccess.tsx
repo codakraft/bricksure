@@ -3,12 +3,58 @@ import { CheckCircle } from "lucide-react";
 import { Layout } from "../components/Layout/Layout";
 import { Card } from "../components/UI/Card";
 import { Button } from "../components/UI/Button";
+import { useSelector } from "react-redux";
+import { RootState } from "../store/store";
+import { useCreateQuoteMutation } from "../services";
+import { useToast } from "../components/UI/Toast";
+import { useState } from "react";
 
 export function PaymentSuccess() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const [createQuote] = useCreateQuoteMutation();
+  const [loading, setLoading] = useState(false);
 
   const handleGoBack = () => {
+    // if (isAuthenticated) {
     navigate("/dashboard/wallet");
+    // } else {
+    //   navigate("/login");
+    // }
+  };
+
+  const paymentData = JSON.parse(localStorage.getItem("quoteData") || "{}");
+  console.log("paymentData", paymentData);
+  console.log("status", isAuthenticated);
+
+  const handleGetQuote = async () => {
+    console.log("Payment Data:", paymentData);
+    setLoading(true);
+    try {
+      const res = await createQuote(paymentData).unwrap();
+      console.log("Create Quote Response:", res);
+      if (res?.data?.property?._id) {
+        addToast({
+          type: "success",
+          title: "Application Submitted Successfully!",
+          message:
+            "Your policy application has been submitted and payment processed. You will be notified of the approval status.",
+        });
+        // Navigate to dashboard with success state
+        navigate("/dashboard?success=quote-submitted");
+      }
+
+      // await new Promise((resolve) => setTimeout(resolve, 3000));
+    } catch {
+      addToast({
+        type: "error",
+        title: "Submission Failed",
+        message: "Please try again or contact support",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -27,8 +73,16 @@ export function PaymentSuccess() {
             </p>
           </div>
 
-          <Button className="w-full" onClick={handleGoBack}>
-            Ok, got it
+          <Button
+            className="w-full"
+            onClick={paymentData ? handleGetQuote : handleGoBack}
+            loading={loading}
+          >
+            {isAuthenticated
+              ? paymentData
+                ? "Continue with Quote"
+                : "Go to Wallet"
+              : "Go to Login"}
           </Button>
         </Card>
       </div>

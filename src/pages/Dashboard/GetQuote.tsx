@@ -3,19 +3,12 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
-  MapPin,
-  Calendar,
-  Home,
   CheckCircle,
-  Plus,
-  Minus,
-  Shield,
   CreditCard,
   Wallet,
   X,
   AlertTriangle,
   Star,
-  Award,
 } from "lucide-react";
 import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
@@ -32,6 +25,9 @@ import {
   useGetPoliciesQuery,
   useGetWalletQuery,
 } from "../../services";
+import { useFundWalletMutation } from "../../services/walletService";
+import { RootState } from "../../store/store";
+import { useSelector } from "react-redux";
 
 interface PropertyDetails {
   address: string;
@@ -65,12 +61,22 @@ interface PolicyTier {
   recommended?: boolean;
 }
 
+// Currency formatting utility function
+const formatCurrency = (amount: number): string => {
+  return `₦${amount.toLocaleString("en-NG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+};
+
 export function GetQuote() {
   const navigate = useNavigate();
   const { addToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [fundWallet] = useFundWalletMutation();
+  const { authData: user } = useSelector((state: RootState) => state.auth);
 
   // Form data
   const [propertyDetails, setPropertyDetails] = useState<PropertyDetails>({
@@ -94,7 +100,7 @@ export function GetQuote() {
   const { data: statesData } = useGetStatesQuery();
   const [getLGAs, { data: lgaData }] = useLazyGetStatesLGAQuery();
 
-  console.log("property Data", propertyTypesData);
+  // console.log("property Data", propertyTypesData);
 
   // Extract state names from statesData using useMemo
   const nigerianStates = useMemo(() => {
@@ -114,12 +120,7 @@ export function GetQuote() {
 
   const propertyTypeOptions = useMemo(() => {
     if (!propertyTypesData?.data?.propertyTypes) {
-      return [
-        { value: "owner", label: "Owner-Occupied Home" },
-        { value: "rental", label: "Rental Property" },
-        { value: "shortlet", label: "Short-let Property" },
-        { value: "commercial", label: "Commercial Building" },
-      ];
+      return [];
     }
     return propertyTypesData.data.propertyTypes.map((type) => ({
       value: type._id,
@@ -131,7 +132,6 @@ export function GetQuote() {
   console.log("Policies Data", policiesData);
 
   const { data: walletData } = useGetWalletQuery();
-  console.log("Wallet Data", walletData);
 
   const walletBalance = useMemo(() => {
     return walletData?.data?.wallet?.balance || 0;
@@ -149,125 +149,191 @@ export function GetQuote() {
 
   const occupancyTypes = ["Under construction", "Occupied", "Not occupied"];
 
-  const quizQuestions = [
-    {
-      id: 1,
-      question: "What type of property do you want to insure?",
-      options: [
-        "Owner-occupied home",
-        "Rental property",
-        "Short-let property",
-        "Commercial building",
-      ],
-      type: "single" as const,
-    },
-    {
-      id: 2,
-      question: "How old is your property?",
-      options: [
-        "Less than 5 years",
-        "5-15 years",
-        "15-30 years",
-        "Over 30 years",
-      ],
-      type: "single" as const,
-    },
-    {
-      id: 3,
-      question: "What are your main concerns? (Select all that apply)",
-      options: [
-        "Fire damage",
-        "Flood damage",
-        "Theft/burglary",
-        "Storm damage",
-        "Structural collapse",
-      ],
-      type: "multiple" as const,
-    },
-    {
-      id: 4,
-      question: "What's your preferred payment frequency?",
-      options: ["Monthly", "Quarterly", "Bi-annual", "Annual"],
-      type: "single" as const,
-    },
-    {
-      id: 5,
-      question: "What's your approximate property value?",
-      options: ["Under ₦10M", "₦10M - ₦25M", "₦25M - ₦50M", "Over ₦50M"],
-      type: "single" as const,
-    },
-  ];
+  const quizQuestions = useMemo(
+    () => [
+      {
+        id: 1,
+        question: "What type of property do you want to insure?",
+        options:
+          propertyTypeOptions.length > 0
+            ? propertyTypeOptions.map((type) => type.label)
+            : [
+                "Owner-occupied home",
+                "Rental property",
+                "Short-let property",
+                "Commercial building",
+              ],
+        type: "single" as const,
+      },
+      {
+        id: 2,
+        question: "How old is your property?",
+        options: [
+          "Less than 5 years",
+          "5-15 years",
+          "15-30 years",
+          "Over 30 years",
+        ],
+        type: "single" as const,
+      },
+      {
+        id: 3,
+        question: "What are your main concerns? (Select all that apply)",
+        options: [
+          "Fire damage",
+          "Flood damage",
+          "Theft/burglary",
+          "Storm damage",
+          "Structural collapse",
+        ],
+        type: "multiple" as const,
+      },
+      {
+        id: 4,
+        question: "What's your preferred payment frequency?",
+        options: ["Monthly", "Quarterly", "Bi-annual", "Annual"],
+        type: "single" as const,
+      },
+      {
+        id: 5,
+        question: "What's your approximate property value?",
+        options: ["Under ₦10M", "₦10M - ₦25M", "₦25M - ₦50M", "Over ₦50M"],
+        type: "single" as const,
+      },
+    ],
+    [propertyTypeOptions]
+  );
 
-  const policyTiers: PolicyTier[] = [
-    {
-      id: "basic",
-      name: "Basic",
-      basePrice: 15000,
-      description: "Essential protection for core risks",
-      features: [
-        "Fire protection",
-        "Lightning coverage",
-        "Explosion damage",
-        "Basic theft protection",
-      ],
-    },
-    {
-      id: "standard",
-      name: "Standard",
-      basePrice: 25000,
-      description: "Comprehensive everyday protection",
-      features: [
-        "Everything in Basic",
-        "Burglary/theft coverage",
-        "Flood protection",
-        "Storm & water damage",
-      ],
-      recommended: true,
-    },
-    {
-      id: "plus",
-      name: "Plus",
-      basePrice: 40000,
-      description: "Premium comprehensive coverage",
-      features: [
-        "Everything in Standard",
-        "Accidental damage",
-        "Public liability cover",
-        "Alternative accommodation",
-      ],
-    },
-  ];
+  const policyTiers: PolicyTier[] = useMemo(() => {
+    const defaultTiers = [
+      {
+        id: "basic",
+        name: "Basic",
+        basePrice: 15000,
+        description: "Essential protection for core risks",
+        features: [
+          "Fire protection",
+          "Lightning coverage",
+          "Explosion damage",
+          "Basic theft protection",
+        ],
+      },
+      {
+        id: "standard",
+        name: "Standard",
+        basePrice: 25000,
+        description: "Comprehensive everyday protection",
+        features: [
+          "Everything in Basic",
+          "Burglary/theft coverage",
+          "Flood protection",
+          "Storm & water damage",
+        ],
+        recommended: true,
+      },
+      {
+        id: "plus",
+        name: "Plus",
+        basePrice: 40000,
+        description: "Premium comprehensive coverage",
+        features: [
+          "Everything in Standard",
+          "Accidental damage",
+          "Public liability cover",
+          "Alternative accommodation",
+        ],
+      },
+    ];
 
-  const additionalCoverages: CoverageOption[] = [
-    {
-      id: "liability",
-      name: "Public Liability",
-      description: "Protection against third-party claims",
-      price: 8000,
-      included: false,
-    },
-    {
-      id: "contents",
-      name: "Contents Insurance",
-      description: "Coverage for personal belongings",
-      price: 12000,
-      included: false,
-    },
-    {
-      id: "lossOfRent",
-      name: "Loss of Rent",
-      description: "Compensation for rental income loss",
-      price: 6000,
-      included: false,
-    },
-    {
-      id: "accidental",
-      name: "Accidental Damage",
-      description: "Coverage for accidental property damage",
-      price: 10000,
-      included: false,
-    },
-  ];
+    if (!policiesData?.data?.policyPrices) {
+      return defaultTiers;
+    }
+
+    const prices = policiesData.data.policyPrices;
+
+    // Update the tiers with API prices
+    return defaultTiers.map((tier) => ({
+      ...tier,
+      basePrice:
+        tier.id === "basic"
+          ? parseInt(prices.basic) || tier.basePrice
+          : tier.id === "standard"
+          ? parseInt(prices.standard) || tier.basePrice
+          : tier.id === "plus"
+          ? parseInt(prices.plus) || tier.basePrice
+          : tier.basePrice,
+    }));
+  }, [policiesData]);
+
+  const additionalCoverages: CoverageOption[] = useMemo(() => {
+    if (!policiesData?.data?.policyPrices) {
+      // Fallback data if API data is not available
+      return [
+        {
+          id: "liability",
+          name: "Public Liability",
+          description: "Protection against third-party claims",
+          price: 8000,
+          included: false,
+        },
+        {
+          id: "contents",
+          name: "Contents Insurance",
+          description: "Coverage for personal belongings",
+          price: 12000,
+          included: false,
+        },
+        {
+          id: "lossOfRent",
+          name: "Loss of Rent",
+          description: "Compensation for rental income loss",
+          price: 6000,
+          included: false,
+        },
+        {
+          id: "accidental",
+          name: "Accidental Damage",
+          description: "Coverage for accidental property damage",
+          price: 10000,
+          included: false,
+        },
+      ];
+    }
+
+    const prices = policiesData.data.policyPrices;
+
+    // Skip the first 3 items (basic, standard, plus) and use the remaining coverage options
+    return [
+      {
+        id: "liability",
+        name: "Public Liability",
+        description: "Protection against third-party claims",
+        price: parseInt(prices.publicLiability) || 8000,
+        included: false,
+      },
+      {
+        id: "contents",
+        name: "Contents Insurance",
+        description: "Coverage for personal belongings",
+        price: parseInt(prices.contentsIssurance) || 12000,
+        included: false,
+      },
+      {
+        id: "accidental",
+        name: "Accidental Damage",
+        description: "Coverage for accidental property damage",
+        price: parseInt(prices.accidentalDamage) || 10000,
+        included: false,
+      },
+      {
+        id: "lossOfRent",
+        name: "Loss of Rent",
+        description: "Compensation for rental income loss",
+        price: parseInt(prices.lossOfRent) || 6000,
+        included: false,
+      },
+    ];
+  }, [policiesData]);
 
   // const walletBalance = 15000; // Mock wallet balance
 
@@ -462,7 +528,7 @@ export function GetQuote() {
       }
 
       // await new Promise((resolve) => setTimeout(resolve, 3000));
-    } catch (error) {
+    } catch {
       addToast({
         type: "error",
         title: "Submission Failed",
@@ -482,25 +548,72 @@ export function GetQuote() {
       });
       return;
     }
+    if (calculateTotalPrice() - walletBalance > parseFloat(fundAmount)) {
+      addToast({
+        type: "error",
+        title: "Insufficient Amount",
+        message: `Please enter at least ${formatCurrency(
+          calculateTotalPrice() - walletBalance
+        )} to cover the quote`,
+      });
+      return;
+    }
+
+    const data = {
+      address: propertyDetails.address,
+      state: propertyDetails.state,
+      lga: propertyDetails.lga,
+      propertyType: propertyDetails.propertyType,
+      year: Number(propertyDetails.yearBuilt),
+      buildingMaterials: propertyDetails.materials,
+      occupancyStatus: propertyDetails.occupancy,
+      paymentFrequency: getCurrentQuizAnswer(4)[0].toLowerCase() || "",
+      policy: selectedTier,
+      propertyValue: getCurrentQuizAnswer(5)[0] || "",
+      concerns: getCurrentQuizAnswer(3),
+      extraCoverage: {
+        lossOfRent: selectedCoverages.includes("lossOfRent"),
+        contentInsurance: selectedCoverages.includes("contents"),
+        publicLiability: selectedCoverages.includes("liability"),
+        accidentalDamage: selectedCoverages.includes("accidental"),
+      },
+    };
+
+    localStorage.setItem("quoteData", JSON.stringify(data));
+    // setTimeout(() => {
+    //   navigate("/payment-success");
+    // }, 5000);
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      addToast({
-        type: "success",
-        title: "Wallet Funded!",
-        message: "Proceeding with checkout...",
-      });
-      setShowFundModal(false);
-      setTimeout(() => handleCheckout(), 1000);
-    } catch (error) {
+      const response = await fundWallet({
+        amount: parseFloat(fundAmount),
+        email: user.email,
+      }).unwrap();
+
+      console.log("Fund Wallet Response:", response);
+
+      if (response?.data?.data?.authorizationUrl) {
+        window.location.href = response.data.data.authorizationUrl;
+
+        addToast({
+          type: "success",
+          title: "Payment Initiated",
+          message: "Redirecting to Paystack for payment...",
+        });
+
+        // Close the fund modal
+        setShowFundModal(false);
+        setFundAmount("");
+      } else {
+        throw new Error("Authorization URL not received");
+      }
+    } catch {
       addToast({
         type: "error",
         title: "Funding Failed",
-        message: "Please try again",
+        message: "Please try again or contact support",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -857,74 +970,81 @@ export function GetQuote() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {policyTiers.map((tier) => (
-                    <Card
+                    <div
                       key={tier.id}
-                      className={`p-6 cursor-pointer transition-all duration-300 hover:scale-105 ${
-                        selectedTier === tier.id
-                          ? "ring-2 ring-blue-500 shadow-xl bg-blue-50 dark:bg-blue-900/20"
-                          : "hover:shadow-lg"
-                      } ${tier.recommended ? "ring-2 ring-green-500" : ""}`}
+                      className="cursor-pointer transition-all duration-300 hover:scale-105"
                       onClick={() => setSelectedTier(tier.id)}
                     >
-                      {tier.recommended && (
-                        <div className="flex items-center justify-center mb-4">
-                          <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                            <Star className="h-4 w-4 mr-1" />
-                            Recommended
-                          </span>
-                        </div>
-                      )}
-
-                      {selectedTier === tier.id && (
-                        <div className="flex items-center justify-center mb-4">
-                          <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Selected
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="text-center mb-4">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                          {tier.name}
-                        </h3>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-                          ₦{tier.basePrice.toLocaleString()}/year
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300 text-sm">
-                          {tier.description}
-                        </p>
-                      </div>
-
-                      <ul className="space-y-2">
-                        {tier.features.map((feature, index) => (
-                          <li key={index} className="flex items-center text-sm">
-                            <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                            <span className="text-gray-600 dark:text-gray-300">
-                              {feature}
+                      <Card
+                        className={`p-6 h-full ${
+                          selectedTier === tier.id
+                            ? "ring-2 ring-blue-500 shadow-xl bg-blue-50 dark:bg-blue-900/20"
+                            : "hover:shadow-lg"
+                        } ${tier.recommended ? "ring-2 ring-green-500" : ""}`}
+                      >
+                        {tier.recommended && (
+                          <div className="flex items-center justify-center mb-4">
+                            <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                              <Star className="h-4 w-4 mr-1" />
+                              Recommended
                             </span>
-                          </li>
-                        ))}
-                      </ul>
+                          </div>
+                        )}
 
-                      <div className="mt-6">
-                        <Button
-                          className={`w-full ${
-                            selectedTier === tier.id
-                              ? "bg-blue-600 hover:bg-blue-700"
-                              : "bg-gray-400 hover:bg-gray-500"
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTier(tier.id);
-                          }}
-                        >
-                          {selectedTier === tier.id
-                            ? "Selected"
-                            : "Select This Plan"}
-                        </Button>
-                      </div>
-                    </Card>
+                        {selectedTier === tier.id && (
+                          <div className="flex items-center justify-center mb-4">
+                            <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Selected
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="text-center mb-4">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                            {tier.name}
+                          </h3>
+                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                            {formatCurrency(tier.basePrice)}/year
+                          </p>
+                          <p className="text-gray-600 dark:text-gray-300 text-sm">
+                            {tier.description}
+                          </p>
+                        </div>
+
+                        <ul className="space-y-2">
+                          {tier.features.map((feature, index) => (
+                            <li
+                              key={index}
+                              className="flex items-center text-sm"
+                            >
+                              <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                              <span className="text-gray-600 dark:text-gray-300">
+                                {feature}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        <div className="mt-6">
+                          <Button
+                            className={`w-full ${
+                              selectedTier === tier.id
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "bg-gray-400 hover:bg-gray-500"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTier(tier.id);
+                            }}
+                          >
+                            {selectedTier === tier.id
+                              ? "Selected"
+                              : "Select This Plan"}
+                          </Button>
+                        </div>
+                      </Card>
+                    </div>
                   ))}
                 </div>
 
@@ -946,10 +1066,10 @@ export function GetQuote() {
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          ₦
-                          {policyTiers
-                            .find((t) => t.id === selectedTier)
-                            ?.basePrice.toLocaleString()}
+                          {formatCurrency(
+                            policyTiers.find((t) => t.id === selectedTier)
+                              ?.basePrice || 0
+                          )}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           per year
@@ -991,10 +1111,10 @@ export function GetQuote() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                        ₦
-                        {policyTiers
-                          .find((t) => t.id === selectedTier)
-                          ?.basePrice.toLocaleString()}
+                        {formatCurrency(
+                          policyTiers.find((t) => t.id === selectedTier)
+                            ?.basePrice || 0
+                        )}
                       </p>
                     </div>
                   </div>
@@ -1007,47 +1127,51 @@ export function GetQuote() {
                   </h3>
                   <div className="space-y-4">
                     {additionalCoverages.map((coverage) => (
-                      <Card
+                      <div
                         key={coverage.id}
-                        className={`p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${
-                          selectedCoverages.includes(coverage.id)
-                            ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                            : ""
-                        }`}
+                        className="cursor-pointer transition-all duration-200"
                         onClick={() => toggleCoverage(coverage.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <button
-                              className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                selectedCoverages.includes(coverage.id)
-                                  ? "bg-blue-500 border-blue-500 text-white"
-                                  : "border-gray-300 dark:border-gray-600"
-                              }`}
-                            >
-                              {selectedCoverages.includes(coverage.id) && (
-                                <CheckCircle className="h-4 w-4" />
-                              )}
-                            </button>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">
-                                {coverage.name}
-                              </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                {coverage.description}
+                        <Card
+                          className={`p-4 hover:shadow-md ${
+                            selectedCoverages.includes(coverage.id)
+                              ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                  selectedCoverages.includes(coverage.id)
+                                    ? "bg-blue-500 border-blue-500 text-white"
+                                    : "border-gray-300 dark:border-gray-600"
+                                }`}
+                              >
+                                {selectedCoverages.includes(coverage.id) && (
+                                  <CheckCircle className="h-4 w-4" />
+                                )}
+                              </button>
+                              <div>
+                                <h4 className="font-medium text-gray-900 dark:text-white">
+                                  {coverage.name}
+                                </h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {coverage.description}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                +{formatCurrency(coverage.price)}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                per year
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              +₦{coverage.price.toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              per year
-                            </p>
-                          </div>
-                        </div>
-                      </Card>
+                        </Card>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1070,7 +1194,7 @@ export function GetQuote() {
                     </div>
                     <div className="text-right">
                       <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                        ₦{calculateTotalPrice().toLocaleString()}
+                        {formatCurrency(calculateTotalPrice())}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         per year
@@ -1089,7 +1213,7 @@ export function GetQuote() {
                       </span>
                     </div>
                     <span className="font-bold text-gray-900 dark:text-white">
-                      ₦{walletBalance.toLocaleString()}
+                      {formatCurrency(walletBalance)}
                     </span>
                   </div>
                   {walletBalance < calculateTotalPrice() && (
@@ -1166,20 +1290,27 @@ export function GetQuote() {
               <div className="space-y-4">
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    You need ₦
-                    {(calculateTotalPrice() - walletBalance).toLocaleString()}{" "}
-                    more to complete this purchase.
+                    You need{" "}
+                    {formatCurrency(calculateTotalPrice() - walletBalance)} more
+                    to complete this purchase.
                   </p>
                 </div>
 
                 <Input
                   label="Amount to Fund (₦)"
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  placeholder={`Minimum: ${
+                  type="text"
+                  value={
+                    fundAmount
+                      ? formatCurrency(parseInt(fundAmount)).replace("₦", "")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, "");
+                    setFundAmount(value);
+                  }}
+                  placeholder={`Minimum: ${formatCurrency(
                     calculateTotalPrice() - walletBalance
-                  }`}
+                  ).replace("₦", "")}`}
                   min={calculateTotalPrice() - walletBalance}
                 />
 

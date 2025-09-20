@@ -14,26 +14,30 @@ import {
 import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
 import { Button } from "../../components/UI/Button";
-import { useAuth } from "../../hooks/useAuth";
+// import { useAuth } from "../../hooks/useAuth";
 import { ApplicationTracker } from "./ApplicationTracker";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
 import { useGetPropertiesQuery, useGetWalletQuery } from "../../services";
+import { useGetUserQuery } from "../../services/authService";
 
 export function Dashboard() {
   // const { user } = useAuth();
 
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { data: userData } = useGetUserQuery(undefined, {
+    skip: !isAuthenticated, // Only fetch user data when authenticated
+  });
+
   const { data: walletData } = useGetWalletQuery();
-  console.log("Wallet Data", walletData);
 
   const walletBalance = useMemo(() => {
     return walletData?.data?.wallet?.balance || 0;
   }, [walletData]);
 
-  const { authData: user } = useSelector((state: RootState) => state.auth);
+  // const { authUser: userData } = useSelector((state: RootState) => state.auth);
 
   const { data: propertiesData } = useGetPropertiesQuery();
-  console.log("Properties Data", propertiesData);
 
   const properties = useMemo(() => {
     return propertiesData?.data || [];
@@ -198,7 +202,7 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Welcome back, {user?.email?.split(" ")[0]}!
+                  Welcome back, {userData?.data?.user?.firstName}!
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
                   Manage your properties and policies in one place
