@@ -1,6 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { authApi } from "./authService";
 import { RootState } from "../store/store";
+// import { AuthUserData } from "../types";
 
 // Types for the auth state
 interface User {
@@ -22,6 +23,7 @@ export interface IMyBankInitialState {
   authData: User;
   token?: string | null;
   isAuthenticated: boolean;
+//   authUser: AuthUserData | null;
 }
 
 const initState: IMyBankInitialState = {
@@ -33,6 +35,7 @@ const initState: IMyBankInitialState = {
   },
   token: "",
   isAuthenticated: false,
+//   authUser: null,
 };
 
 // Check localStorage for existing authentication on app initialization
@@ -172,6 +175,27 @@ export const authSlice = createSlice({
         return;
       }
     );
+    // builder.addMatcher(
+    //   authApi.endpoints.getUser.matchFulfilled,
+    //   (state, { payload }) => {
+    //     const { data } = payload;
+    //     console.log("UserSlice", payload);
+    //     if (data) {
+    //       console.log("Data", data);
+    //       state.authUser = {
+    //         ...data,
+    //       };
+
+    //       state.status = "login-success";
+
+    //       return;
+    //     }
+    //     state.status = "login-error";
+    //     state.isAuthenticated = false;
+
+    //     return;
+    //   }
+    // );
   },
 });
 

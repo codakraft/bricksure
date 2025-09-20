@@ -2,6 +2,7 @@ import React, {
   useState,
   //  useRef,
   useMemo,
+  useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -132,6 +133,19 @@ export function AddProperty() {
     }
   };
 
+  // Generate Google Maps URL for the address
+  const getMapUrl = useCallback(() => {
+    if (!formData.address) return "";
+
+    const fullAddress =
+      formData.state && formData.lga
+        ? `${formData.address}, ${formData.lga}, ${formData.state}, Nigeria`
+        : `${formData.address}, Nigeria`;
+
+    const encodedAddress = encodeURIComponent(fullAddress);
+    return `https://www.google.com/maps/embed/v1/place?key=AIzaSyDR5X9fQSrlUCC-9OFBOo-Ph_FQx0Zq8dw&q=${encodedAddress}&zoom=16`;
+  }, [formData.address, formData.state, formData.lga]);
+
   const handleFileUpload = (type: "photos" | "videos" | "documents") => {
     const input = document.createElement("input");
     input.type = "file";
@@ -240,11 +254,40 @@ export function AddProperty() {
   };
 
   const simulateLocationPin = () => {
-    // Simulate dropping a pin on the map
+    // Enhanced location pinning with address-based geocoding simulation
+    if (!formData.address) {
+      addToast({
+        type: "error",
+        title: "Address Required",
+        message: "Please enter a property address first.",
+      });
+      return;
+    }
+
+    // Simulate geocoding based on Nigerian states
+    let lat = 6.5244; // Default Lagos
+    let lng = 3.3792;
+
+    // Adjust coordinates based on state
+    if (formData.state.toLowerCase().includes("abuja")) {
+      lat = 9.0579;
+      lng = 7.4951;
+    } else if (formData.state.toLowerCase().includes("kano")) {
+      lat = 12.0022;
+      lng = 8.592;
+    } else if (formData.state.toLowerCase().includes("rivers")) {
+      lat = 4.8156;
+      lng = 7.0498;
+    }
+
+    // Add some random variance for more realistic coordinates
+    lat += (Math.random() - 0.5) * 0.01;
+    lng += (Math.random() - 0.5) * 0.01;
+
     setFormData((prev) => ({
       ...prev,
-      latitude: "6.5244",
-      longitude: "3.3792",
+      latitude: lat.toFixed(6),
+      longitude: lng.toFixed(6),
       mapConfirmed: true,
     }));
 
@@ -529,33 +572,73 @@ export function AddProperty() {
                   </p>
                 </div>
 
-                {/* Map Placeholder */}
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center bg-gray-50 dark:bg-gray-800">
-                  <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                    Interactive Map
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Address: {formData.address || "No address provided"}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                    Map integration will show here. Click to drop a pin at your
-                    exact property location.
-                  </p>
+                {/* Google Maps Integration */}
+                <div className="border-2 border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+                  {formData.address ? (
+                    <div className="relative">
+                      {/* Google Maps Iframe */}
+                      <iframe
+                        width="100%"
+                        height="400"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        allowFullScreen
+                        referrerPolicy="no-referrer-when-downgrade"
+                        src={getMapUrl()}
+                        className="w-full h-96"
+                        title="Property Location Map"
+                      />
 
-                  {formData.mapConfirmed ? (
-                    <div className="flex items-center justify-center space-x-2 text-green-600 dark:text-green-400">
-                      <CheckCircle className="h-5 w-5" />
-                      <span className="font-medium">Location Confirmed</span>
-                      <span className="text-sm">
-                        ({formData.latitude}, {formData.longitude})
-                      </span>
+                      {/* Map Overlay Info */}
+                      <div className="absolute top-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 max-w-sm">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <span className="font-medium text-gray-900 dark:text-white text-sm">
+                            Property Location
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {formData.address}
+                          {formData.lga && `, ${formData.lga}`}
+                          {formData.state && `, ${formData.state}`}
+                        </p>
+                      </div>
+
+                      {/* Confirm Location Button */}
+                      <div className="absolute bottom-4 right-4">
+                        {formData.mapConfirmed ? (
+                          <div className="flex items-center space-x-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 px-3 py-2 rounded-lg">
+                            <CheckCircle className="h-4 w-4" />
+                            <span className="text-sm font-medium">
+                              Location Confirmed
+                            </span>
+                          </div>
+                        ) : (
+                          <Button onClick={simulateLocationPin} size="sm">
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Confirm Location
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <Button onClick={simulateLocationPin}>
-                      <MapPin className="h-4 w-4 mr-2" />
-                      Drop Pin Here
-                    </Button>
+                    <div className="p-8 text-center">
+                      <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                        Enter Property Address
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Please enter your property address in Step 1 to view the
+                        location on the map.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentStep(1)}
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Go Back to Enter Address
+                      </Button>
+                    </div>
                   )}
                 </div>
 

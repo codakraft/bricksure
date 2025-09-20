@@ -123,7 +123,7 @@ export function Properties() {
                 Manage your property portfolio
               </p>
             </div>
-            <Button onClick={handleAddProperty}>
+            <Button onClick={handleGetQuote}>
               <Plus className="h-4 w-4 mr-2" />
               Add Property
             </Button>

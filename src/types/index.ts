@@ -378,3 +378,30 @@ export interface ViewPropertyByIdResponse {
 export interface ViewPropertyByIdData {
   property: ViewAllPropData
 }
+
+export interface AuthUserResponse {
+  message: string
+  data: AuthUserData
+}
+
+export interface AuthUserData {
+  user: UserAuth
+}
+
+export interface UserAuth {
+  _id: string
+  firstName: string
+  lastName: string
+  email: string
+  emailVerified: boolean
+  disabled: boolean
+  phoneNumber: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+  emailOtp: string
+  emailOtpSentAt: string
+  otp: string
+  otpSentAt: any
+  sessionId: string
+}

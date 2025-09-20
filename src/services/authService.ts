@@ -1,5 +1,6 @@
 import {
   AuthResponse,
+  AuthUserResponse,
   LoginRequest,
   SignUpRequest,
   VerifyEmailResponse,
@@ -37,6 +38,12 @@ export const authApi = api.injectEndpoints({
         method: "GET",
       }),
     }),
+    getUser: builder.query<AuthUserResponse, void>({
+      query: () => ({
+        url: "/api/v1/auth/user",
+        method: "GET",
+      }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -46,4 +53,5 @@ export const {
   useLoginMutation,
   useVerifyEmailMutation,
   useLazyResendVerifyEmailQuery,
+  useGetUserQuery,
 } = authApi;

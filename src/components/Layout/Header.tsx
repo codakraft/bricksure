@@ -3,10 +3,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Shield, Menu, X, Sun, Moon, Bell, User } from "lucide-react";
 import { Button } from "../UI/Button";
 import { useTheme } from "../../hooks/useTheme";
-import { useAuth } from "../../hooks/useAuth";
+// import { useAuth } from "../../hooks/useAuth";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store/store";
 import { logout } from "../../services/authSlice";
+import { useGetUserQuery } from "../../services/authService";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -14,9 +15,10 @@ export function Header() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   // const { user, logout, isAuthenticated } = useAuth();
-  const { isAuthenticated, authData: user } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { data: userData } = useGetUserQuery(undefined, {
+    skip: !isAuthenticated, // Only fetch user data when authenticated
+  });
   const location = useLocation();
 
   const handleLogout = () => {
@@ -105,7 +107,7 @@ export function Header() {
                     >
                       <User className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                        {user?.email || "User"}
+                        {userData?.data?.user?.firstName || "User"}
                       </span>
                     </Link>
                     <Button
