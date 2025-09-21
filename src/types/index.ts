@@ -351,6 +351,7 @@ export interface ViewAllPropData {
   createdAt: string
   updatedAt: string
   policyCode: string
+  amountPaid: number
   __v: number
 }
 

@@ -71,6 +71,8 @@ export function PropertyDetails() {
       images: 0, // Not available in API, default to 0
       lastUpdated: apiProperty.updatedAt,
       premium: apiProperty.totalAmount,
+      paymentFrequency: apiProperty.paymentFrequency || "Annual",
+      amountPaid: apiProperty.totalAmount,
       tier: "Standard", // Not available in API, default to Standard
       nextPayment: apiProperty.nextPayment,
       policyNumber: apiProperty.policyCode || `BS-${apiProperty._id.slice(-6)}`,
@@ -116,6 +118,8 @@ export function PropertyDetails() {
       extraCoverage: apiProperty.extraCoverage,
     };
   }, [propertyData]);
+
+  console.log("Property Details:", property);
 
   // Get wallet balance from real API data
   const walletBalance = useMemo(() => {
@@ -516,10 +520,10 @@ export function PropertyDetails() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Annual Premium
+                        {property.paymentFrequency}
                       </p>
                       <p className="font-medium text-gray-900 dark:text-white">
-                        ₦{property.premium.toLocaleString()}
+                        ₦{property.amountPaid.toLocaleString()}
                       </p>
                     </div>
                     <div>
