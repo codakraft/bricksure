@@ -412,7 +412,24 @@ export function GetQuote() {
       const coverage = additionalCoverages.find((c) => c.id === coverageId);
       return total + (coverage?.price || 0);
     }, 0);
-    return basePrice + additionalPrice;
+
+    const totalAnnualPrice = basePrice + additionalPrice;
+
+    // Get payment frequency from quiz answers
+    const paymentFrequency = getCurrentQuizAnswer(4)[0] || "Annual";
+
+    // Apply payment frequency adjustments
+    switch (paymentFrequency) {
+      case "Monthly":
+        return (totalAnnualPrice / 12) * 1.05; // Divide by 12 and add 5%
+      case "Quarterly":
+        return (totalAnnualPrice / 4) * 1.035; // Divide by 4 and add 3.5%
+      case "Bi-annual":
+        return (totalAnnualPrice / 2) * 1.02; // Divide by 2 and add 2%
+      case "Annual":
+      default:
+        return totalAnnualPrice; // No adjustment for annual
+    }
   };
 
   const handleNextStep = () => {
@@ -621,6 +638,59 @@ export function GetQuote() {
     return (
       quizAnswers.find((qa) => qa.questionId === questionId)?.answers || []
     );
+  };
+
+  // Helper function to get payment frequency
+  const getPaymentFrequency = () => {
+    return getCurrentQuizAnswer(4)[0] || "Annual";
+  };
+
+  // Helper function to get payment frequency display text
+  const getPaymentFrequencyLabel = () => {
+    const frequency = getPaymentFrequency();
+    switch (frequency) {
+      case "Monthly":
+        return "per month";
+      case "Quarterly":
+        return "per quarter";
+      case "Bi-annual":
+        return "per 6 months";
+      case "Annual":
+      default:
+        return "per year";
+    }
+  };
+
+  // Helper function to get premium title
+  const getPremiumTitle = () => {
+    const frequency = getPaymentFrequency();
+    switch (frequency) {
+      case "Monthly":
+        return "Total Monthly Premium";
+      case "Quarterly":
+        return "Total Quarterly Premium";
+      case "Bi-annual":
+        return "Total Bi-annual Premium";
+      case "Annual":
+      default:
+        return "Total Annual Premium";
+    }
+  };
+
+  // Helper function to calculate tier price based on payment frequency
+  const calculateTierPrice = (basePrice: number) => {
+    const frequency = getPaymentFrequency();
+    switch (frequency) {
+      case "Monthly":
+        return (basePrice / 12) * 1.05; // Divide by 12 and add 5%
+      case "Quarterly":
+        return (basePrice / 4) * 1.035; // Divide by 4 and add 3.5%
+      case "Bi-annual":
+        return (basePrice / 2) * 1.02; // Divide by 2 and add 2%
+      case "Annual":
+      default:
+        return basePrice; // No adjustment for annual
+    }
   };
 
   const steps = [
@@ -1005,8 +1075,20 @@ export function GetQuote() {
                             {tier.name}
                           </h3>
                           <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-                            {formatCurrency(tier.basePrice)}/year
+                            {formatCurrency(calculateTierPrice(tier.basePrice))}
+                            {getPaymentFrequency() === "Monthly"
+                              ? "/month"
+                              : getPaymentFrequency() === "Quarterly"
+                              ? "/quarter"
+                              : getPaymentFrequency() === "Bi-annual"
+                              ? "/6 months"
+                              : "/year"}
                           </p>
+                          {getPaymentFrequency() !== "Annual" && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                              Annual: {formatCurrency(tier.basePrice)}
+                            </p>
+                          )}
                           <p className="text-gray-600 dark:text-gray-300 text-sm">
                             {tier.description}
                           </p>
@@ -1055,25 +1137,42 @@ export function GetQuote() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           Selected:{" "}
                           {policyTiers.find((t) => t.id === selectedTier)?.name}{" "}
-                          Tier
+                          Tier ({getPaymentFrequency()} Payment)
                         </h3>
                         <p className="text-gray-600 dark:text-gray-300">
                           {
                             policyTiers.find((t) => t.id === selectedTier)
                               ?.description
                           }
+                          {getPaymentFrequency() !== "Annual" && (
+                            <span className="block text-sm text-blue-600 dark:text-blue-400 mt-1">
+                              Includes {getPaymentFrequency().toLowerCase()}{" "}
+                              payment convenience with applicable fees
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {formatCurrency(
-                            policyTiers.find((t) => t.id === selectedTier)
-                              ?.basePrice || 0
+                            calculateTierPrice(
+                              policyTiers.find((t) => t.id === selectedTier)
+                                ?.basePrice || 0
+                            )
                           )}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          per year
+                          {getPaymentFrequencyLabel()}
                         </p>
+                        {getPaymentFrequency() !== "Annual" && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            Annual:{" "}
+                            {formatCurrency(
+                              policyTiers.find((t) => t.id === selectedTier)
+                                ?.basePrice || 0
+                            )}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -1112,9 +1211,14 @@ export function GetQuote() {
                     <div className="text-right">
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                         {formatCurrency(
-                          policyTiers.find((t) => t.id === selectedTier)
-                            ?.basePrice || 0
+                          calculateTierPrice(
+                            policyTiers.find((t) => t.id === selectedTier)
+                              ?.basePrice || 0
+                          )
                         )}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {getPaymentFrequencyLabel()}
                       </p>
                     </div>
                   </div>
@@ -1181,7 +1285,7 @@ export function GetQuote() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        Total Annual Premium
+                        {getPremiumTitle()}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {selectedCoverages.length > 0 &&
@@ -1197,7 +1301,7 @@ export function GetQuote() {
                         {formatCurrency(calculateTotalPrice())}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        per year
+                        {getPaymentFrequencyLabel()}
                       </p>
                     </div>
                   </div>
