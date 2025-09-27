@@ -22,7 +22,7 @@ import { Dashboard } from "../pages/Dashboard/Dashboard";
 import { Properties } from "../pages/Dashboard/Properties";
 import { AddProperty } from "../pages/Dashboard/AddProperty";
 import { PropertyDetails } from "../pages/Dashboard/PropertyDetails";
-import { GetQuote } from "../pages/Dashboard/GetQuote";
+import { GetQuote } from "../pages/Dashboard/GetQuote2";
 import { Policies } from "../pages/Dashboard/Policies";
 import { WalletPage } from "../pages/Dashboard/Wallet";
 import { useSelector } from "react-redux";
