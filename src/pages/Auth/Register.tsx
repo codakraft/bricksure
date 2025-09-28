@@ -28,6 +28,25 @@ export function Register() {
   const { addToast } = useToast();
   const navigate = useNavigate();
 
+  const getPasswordRuleError = (value: string) => {
+    if (!value) {
+      return "Password is required";
+    }
+    if (value.length < 8) {
+      return "Password must be at least 8 characters";
+    }
+    if (!/[A-Z]/.test(value)) {
+      return "Password must include at least one uppercase letter";
+    }
+    if (!/\d/.test(value)) {
+      return "Password must include at least one number";
+    }
+    if (!/[^A-Za-z0-9]/.test(value)) {
+      return "Password must include at least one special character";
+    }
+    return null;
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -53,14 +72,20 @@ export function Register() {
       newErrors.phoneNumber = "Enter a valid Nigerian phone number";
     }
 
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    } else if (formData.password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
+    const passwordError = getPasswordRuleError(formData.password);
+    if (passwordError) {
+      newErrors.password = passwordError;
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
+    } else {
+      const confirmError = getPasswordRuleError(formData.confirmPassword);
+      if (confirmError) {
+        newErrors.confirmPassword = confirmError;
+      }
     }
 
     setErrors(newErrors);
@@ -179,7 +204,6 @@ export function Register() {
                   onChange={handleChange}
                   error={errors.password}
                   placeholder="Create a strong password"
-                  help="Must be at least 8 characters long"
                   required
                 />
                 <button
@@ -194,6 +218,10 @@ export function Register() {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 -mt-3 mb-3">
+                Password must be at least 8 characters and include one uppercase
+                letter, one number, and one special character.
+              </p>
 
               <div className="relative">
                 <Input
