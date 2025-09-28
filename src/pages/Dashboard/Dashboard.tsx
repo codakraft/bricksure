@@ -9,7 +9,6 @@ import {
   Bell,
   Shield,
   Calendar,
-  DollarSign,
 } from "lucide-react";
 import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
@@ -20,6 +19,27 @@ import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
 import { useGetPropertiesQuery, useGetWalletQuery } from "../../services";
 import { useGetUserQuery } from "../../services/authService";
+
+const NairaSign = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M7 3v18" />
+    <path d="M17 3v18" />
+    <path d="M7 3l10 18" />
+    <path d="M7 8h10" />
+    <path d="M7 16h10" />
+  </svg>
+);
 
 export function Dashboard() {
   // const { user } = useAuth();
@@ -188,7 +208,7 @@ export function Dashboard() {
       title: "Wallet Balance",
       value: walletBalance >= 0 ? `₦${walletBalance.toLocaleString()}` : "₦0",
       description: "Available funds",
-      icon: DollarSign,
+      icon: NairaSign,
       color: "text-green-600 dark:text-green-400",
     },
   ];

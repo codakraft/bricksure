@@ -1055,6 +1055,41 @@ export function GetQuote() {
       return;
     }
 
+    const data = {
+      address: getQuizAnswerValue("address") || "",
+      state: getQuizAnswerValue("state") || "",
+      lga: getQuizAnswerValue("lga") || "",
+      propertyType: getPropertyTypeFromQuiz(),
+      year:
+        Number(getQuizAnswerValue("buildingAge")) ||
+        new Date().getFullYear() - 5,
+      buildingMaterials: getBuildingMaterialsFromQuiz(),
+      occupancyStatus: getOccupancyStatusFromQuiz(),
+      paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
+      policy: "basic", // You can determine this from quiz if you have policy selection
+      propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
+      concerns: getSelectedConcerns(),
+      extraCoverage: {
+        lossOfRent:
+          (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
+          false,
+        contentInsurance:
+          (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
+          false,
+        publicLiability:
+          (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
+          false,
+        accidentalDamage:
+          (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
+          false,
+      },
+    };
+
+    localStorage.setItem("quoteData", JSON.stringify(data));
+    // setTimeout(() => {
+    //   navigate("/payment-success");
+    // }, 5000);
+
     setLoading(true);
     try {
       const response = await fundWallet({
@@ -2213,7 +2248,7 @@ export function GetQuote() {
                 <Button
                   variant="outline"
                   className="w-full justify-start group"
-                  onClick={handleCheckout}
+                  onClick={handleWalletPayment}
                   disabled={loading}
                 >
                   <CreditCard className="h-5 w-5 mr-3 group-hover:scale-110 transition-transform" />
