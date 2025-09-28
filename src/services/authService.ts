@@ -1,10 +1,14 @@
 import {
   AuthResponse,
   AuthUserResponse,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
   LoginRequest,
   SignUpRequest,
   VerifyEmailResponse,
   VerifyOtpRequest,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
 } from "../types";
 import { api } from "./api";
 
@@ -21,6 +25,26 @@ export const authApi = api.injectEndpoints({
     login: builder.mutation<AuthResponse, LoginRequest>({
       query: (body) => ({
         url: "/api/v1/auth/login",
+        method: "POST",
+        body,
+      }),
+    }),
+    forgotPassword: builder.mutation<
+      ForgotPasswordResponse,
+      ForgotPasswordRequest
+    >({
+      query: (body) => ({
+        url: "/api/v1/auth/forgot-password",
+        method: "POST",
+        body,
+      }),
+    }),
+    resetPassword: builder.mutation<
+      ResetPasswordResponse,
+      ResetPasswordRequest
+    >({
+      query: (body) => ({
+        url: "/api/v1/auth/reset-password",
         method: "POST",
         body,
       }),
@@ -51,6 +75,8 @@ export const authApi = api.injectEndpoints({
 export const {
   useSignUpMutation,
   useLoginMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
   useVerifyEmailMutation,
   useLazyResendVerifyEmailQuery,
   useGetUserQuery,

@@ -12,6 +12,8 @@ import { CommunityRiskInsights } from "../pages/CommunityRiskInsights";
 import { Login } from "../pages/Auth/Login";
 import { Register } from "../pages/Auth/Register";
 import { VerifyOTP } from "../pages/Auth/VerifyOTP";
+import { ForgotPassword } from "../pages/Auth/ForgotPassword";
+import { ResetPassword } from "../pages/Auth/ResetPassword";
 import { PaymentSuccess } from "../pages/PaymentSuccess";
 
 // Test components
@@ -65,6 +67,8 @@ export function Router() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp/:pageName" element={<VerifyOTP />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Test routes */}
         <Route path="/encryption-test" element={<ApiEncryptionTest />} />

@@ -2,6 +2,8 @@
 export { 
   useSignUpMutation,
   useLoginMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
   useVerifyEmailMutation,
   useLazyResendVerifyEmailQuery,
 } from './authService';

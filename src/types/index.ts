@@ -385,6 +385,28 @@ export interface AuthUserResponse {
   data: AuthUserData
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  data?: {
+    email?: string;
+    expiresIn?: number;
+  };
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  otp: string;
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
 export interface AuthUserData {
   user: UserAuth
 }
@@ -403,6 +425,6 @@ export interface UserAuth {
   emailOtp: string
   emailOtpSentAt: string
   otp: string
-  otpSentAt: any
+  otpSentAt: string | null
   sessionId: string
 }
