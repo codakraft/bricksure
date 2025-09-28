@@ -974,9 +974,9 @@ export function GetQuote() {
 
     // Extract data from quiz answers
     const data = {
-      address: getQuizAnswerValue("address") || "",
-      state: getQuizAnswerValue("state") || "",
-      lga: getQuizAnswerValue("lga") || "",
+      address: getQuizAnswerValue("address") || "123, Lagos St",
+      state: getQuizAnswerValue("state") || "Lagos",
+      lga: getQuizAnswerValue("lga") || "Ikeja",
       propertyType: getPropertyTypeFromQuiz(),
       year:
         Number(getQuizAnswerValue("buildingAge")) ||
