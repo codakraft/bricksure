@@ -1,4 +1,8 @@
-import { CreateQuoteRequest, CreateQuoteResponse } from "../types";
+import {
+  ChargesResponse,
+  CreateQuoteRequest,
+  CreateQuoteResponse,
+} from "../types";
 import { api } from "./api";
 
 // Quotes API endpoints
@@ -12,8 +16,14 @@ export const quotesApi = api.injectEndpoints({
       }),
       invalidatesTags: ["Quote"],
     }),
+    getCharges: builder.query<ChargesResponse, void>({
+      query: () => ({
+        url: "/api/v1/property/charges",
+        method: "GET",
+      }),
+    }),
   }),
   overrideExisting: false,
 });
 
-export const { useCreateQuoteMutation } = quotesApi;
+export const { useCreateQuoteMutation, useGetChargesQuery } = quotesApi;

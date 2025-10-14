@@ -59,6 +59,8 @@ export function Dashboard() {
 
   const { data: propertiesData } = useGetPropertiesQuery();
 
+  console.log("Fetched properties data:", propertiesData);
+
   const properties = useMemo(() => {
     return propertiesData?.data || [];
   }, [propertiesData]);

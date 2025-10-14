@@ -657,11 +657,25 @@ This is a computer-generated statement.
               <div className="space-y-6">
                 <Input
                   label="Amount (₦)"
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
+                  type="text"
+                  value={
+                    fundAmount
+                      ? `₦${parseFloat(
+                          fundAmount.replace(/[₦,]/g, "") || "0"
+                        ).toLocaleString()}`
+                      : ""
+                  }
+                  onChange={(e) => {
+                    // Remove currency symbol and commas, keep only numbers and decimal point
+                    const numericValue = e.target.value.replace(/[₦,]/g, "");
+                    if (
+                      numericValue === "" ||
+                      /^\d*\.?\d*$/.test(numericValue)
+                    ) {
+                      setFundAmount(numericValue);
+                    }
+                  }}
                   placeholder="Enter amount to fund"
-                  min="100"
                 />
 
                 <div>

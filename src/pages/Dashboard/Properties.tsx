@@ -11,6 +11,8 @@ export function Properties() {
   const navigate = useNavigate();
   const { data: propertiesData, isLoading } = useGetPropertiesQuery();
 
+  console.log("Fetched properties data:", propertiesData);
+
   const properties = useMemo(() => {
     if (!propertiesData?.data) return [];
 

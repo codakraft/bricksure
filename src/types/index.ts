@@ -428,3 +428,166 @@ export interface UserAuth {
   otpSentAt: string | null
   sessionId: string
 }
+
+// charges types
+
+export interface ChargesResponse {
+  message: string
+  data: ChargesResponseData
+}
+
+export interface ChargesResponseData {
+  categories: ChargesCategories
+}
+
+export interface ChargesCategories {
+  propertyBaseFee: string
+  propertyCategory: PropertyCategory
+  pastLoss: string
+  wallMaterial: WallMaterial
+  buildingAge: BuildingAge
+  floodRisk: string
+  specialRisk: number
+  securitySafety: SecuritySafety
+  fireSafety: FireSafety
+  repairNeeded: string
+  commercialUse: string
+  extraCoverage: ChargesExtraCoverage
+}
+
+export interface PropertyCategory {
+  singleOccOffice: SingleOccOffice
+  singleOccResidential: SingleOccResidential
+  hotelHostelGuest: HotelHostelGuest
+  recreationCinema: RecreationCinema
+  schoolTraining: SchoolTraining
+  petrolGasStation: PetrolGasStation
+  hospitalClinic: HospitalClinic
+  multiOccBusiness: MultiOccBusiness
+  multiOccMixedRes: MultiOccMixedRes
+  others: Others
+}
+
+export interface SingleOccOffice {
+  charges: Charges
+}
+
+export interface Charges {
+  perFloor: string
+  perPlot: string
+}
+
+export interface SingleOccResidential {
+  charges: Charges2
+}
+
+export interface Charges2 {
+  perFloor: string
+  perPlot: string
+}
+
+export interface HotelHostelGuest {
+  charges: Charges3
+}
+
+export interface Charges3 {
+  perRoom: string
+  perBed: string
+}
+
+export interface RecreationCinema {
+  charges: Charges4
+}
+
+export interface Charges4 {
+  perFloor: string
+  perCinemaSeat: string
+}
+
+export interface SchoolTraining {
+  charges: Charges5
+}
+
+export interface Charges5 {
+  perBlock: string
+  perPupilSeat: string
+}
+
+export interface PetrolGasStation {
+  charges: Charges6
+}
+
+export interface Charges6 {
+  perPump: string
+}
+
+export interface HospitalClinic {
+  charges: Charges7
+}
+
+export interface Charges7 {
+  perFloor: string
+  perPlot: string
+}
+
+export interface MultiOccBusiness {
+  charges: Charges8
+}
+
+export interface Charges8 {
+  perApartmentOfficeWing: string
+}
+
+export interface MultiOccMixedRes {
+  charges: Charges9
+}
+
+export interface Charges9 {
+  perApartmentOfficeWing: string
+}
+
+export interface Others {
+  charges: Charges10
+}
+
+export interface Charges10 {
+  perFloor: string
+  perPlot: string
+}
+
+export interface WallMaterial {
+  brick: string
+  mud: string
+  wood: string
+  mixedMaterials: string
+}
+
+export interface BuildingAge {
+  "0-5": string
+  "5-10": string
+  "10-20": string
+  "20+": string
+}
+
+export interface SecuritySafety {
+  estateGate: string
+  cctv: string
+  securityGuards: string
+  strongLocks: string
+  noGlassPanels: string
+  occupied: string
+}
+
+export interface FireSafety {
+  fireExtinguisher: string
+  smokeAlarm: string
+  waterAccess: string
+}
+
+export interface ChargesExtraCoverage {
+  theft: string
+  floodProtection: string
+  publicLiability: string
+  extendedFireCover: string
+  burglaryCover: string
+}

@@ -54,6 +54,7 @@ import {
 } from "../../services/walletService";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
+import { useGetChargesQuery } from "../../services/quotesService";
 
 interface QuizAnswer {
   questionId: string;
@@ -177,6 +178,9 @@ export function GetQuote() {
   const [fundWallet] = useFundWalletMutation();
   const { data: walletData } = useGetWalletQuery();
   const { authData: user } = useSelector((state: RootState) => state.auth);
+  const { data: chargesData } = useGetChargesQuery();
+
+  console.log("Charges Data:", chargesData);
 
   const [quizState, setQuizState] = useState<QuizState>({
     answers: {},
@@ -494,50 +498,75 @@ export function GetQuote() {
     });
 
     // Step 2: Structure & Condition
+    questions.push({
+      id: "wallMaterial",
+      text: "What are the outside walls made of?",
+      emoji: "🧱",
+      type: "single",
+      options: [
+        { value: "brick", label: "Brick/Concrete", icon: Building },
+        { value: "wood", label: "Wood", icon: Home },
+        { value: "mud", label: "Mud/Clay", icon: Home },
+        { value: "mixed", label: "Mixed Materials", icon: Building },
+        {
+          value: "other",
+          label: "Other (specify)",
+          icon: HelpCircle,
+          followUp: ["wallMaterialOther"],
+        },
+      ],
+      microCopy: "This affects your property's risk rating",
+    });
+
+    // Add wall material follow-up immediately if "other" is selected
+    if (answers.wallMaterial?.value === "other") {
+      questions.push({
+        id: "wallMaterialOther",
+        text: "Please specify the wall material",
+        emoji: "✏️",
+        type: "text",
+        validation: { required: true },
+        microCopy: "We'll review this for accurate pricing",
+      });
+    }
+
+    questions.push({
+      id: "roofType",
+      text: "What type of roof does it have?",
+      emoji: "🏠",
+      type: "single",
+      options: [
+        {
+          value: "metal",
+          label: "Corrugated Iron/Aluminium Sheets",
+          icon: Home,
+        },
+        { value: "longspan", label: "Longspan Metal", icon: Building },
+        { value: "tiles", label: "Stone-Coated Tiles", icon: Building2 },
+        { value: "concrete", label: "Concrete Slabs", icon: Building },
+        { value: "thatch", label: "Thatch", icon: Home },
+        { value: "asbestos", label: "Asbestos Sheets", icon: Building },
+        {
+          value: "other",
+          label: "Other (specify)",
+          icon: HelpCircle,
+          followUp: ["roofTypeOther"],
+        },
+      ],
+    });
+
+    // Add roof type follow-up immediately if "other" is selected
+    if (answers.roofType?.value === "other") {
+      questions.push({
+        id: "roofTypeOther",
+        text: "Please specify the roof type",
+        emoji: "✏️",
+        type: "text",
+        validation: { required: true },
+      });
+    }
+
     questions.push(
-      {
-        id: "wallMaterial",
-        text: "What are the outside walls made of?",
-        emoji: "🧱",
-        type: "single",
-        options: [
-          { value: "brick", label: "Brick/Concrete", icon: Building },
-          { value: "wood", label: "Wood", icon: Home },
-          { value: "mud", label: "Mud/Clay", icon: Home },
-          { value: "mixed", label: "Mixed Materials", icon: Building },
-          {
-            value: "other",
-            label: "Other (specify)",
-            icon: HelpCircle,
-            followUp: ["wallMaterialOther"],
-          },
-        ],
-        microCopy: "This affects your property's risk rating",
-      },
-      {
-        id: "roofType",
-        text: "What type of roof does it have?",
-        emoji: "🏠",
-        type: "single",
-        options: [
-          {
-            value: "metal",
-            label: "Corrugated Iron/Aluminium Sheets",
-            icon: Home,
-          },
-          { value: "longspan", label: "Longspan Metal", icon: Building },
-          { value: "tiles", label: "Stone-Coated Tiles", icon: Building2 },
-          { value: "concrete", label: "Concrete Slabs", icon: Building },
-          { value: "thatch", label: "Thatch", icon: Home },
-          { value: "asbestos", label: "Asbestos Sheets", icon: Building },
-          {
-            value: "other",
-            label: "Other (specify)",
-            icon: HelpCircle,
-            followUp: ["roofTypeOther"],
-          },
-        ],
-      },
       {
         id: "buildingAge",
         text: "How old is the building?",
@@ -565,28 +594,6 @@ export function GetQuote() {
         ],
       }
     );
-
-    // Add follow-up questions for "other" materials
-    if (answers.wallMaterial?.value === "other") {
-      questions.push({
-        id: "wallMaterialOther",
-        text: "Please specify the wall material",
-        emoji: "✏️",
-        type: "text",
-        validation: { required: true },
-        microCopy: "We'll review this for accurate pricing",
-      });
-    }
-
-    if (answers.roofType?.value === "other") {
-      questions.push({
-        id: "roofTypeOther",
-        text: "Please specify the roof type",
-        emoji: "✏️",
-        type: "text",
-        validation: { required: true },
-      });
-    }
 
     // Step 3: Occupancy & Use
     questions.push({
@@ -947,7 +954,7 @@ export function GetQuote() {
         id: "declaredValue",
         text: "What's the declared value of the property?",
         emoji: "💰",
-        type: "number",
+        type: "text",
         validation: { min: 1000000, required: true },
         microCopy: "Current market value in Nigerian Naira",
       },
@@ -1039,17 +1046,23 @@ export function GetQuote() {
       return;
     }
 
+    const neededAmount = Math.max(
+      0,
+      (quizState.premiumBreakdown?.total || 0) -
+        (walletData?.data?.wallet?.balance || 0)
+    );
+
     // Get total price from current quiz
     const totalPrice = quizState.premiumBreakdown?.total || 0;
     const currentWalletBalance = 0; // We'll get this from API if needed
 
     // Validate that fund amount covers the required balance
-    if (totalPrice - currentWalletBalance > parseFloat(fundAmount)) {
+    if (neededAmount > parseFloat(fundAmount)) {
       addToast({
         type: "error",
         title: "Insufficient Amount",
         message: `Please enter at least ${formatCurrency(
-          totalPrice - currentWalletBalance
+          neededAmount
         )} to cover the quote`,
       });
       return;
@@ -1817,22 +1830,53 @@ export function GetQuote() {
                     <div className="max-w-md animate-in slide-in-from-bottom-4 duration-300">
                       <Input
                         type={
-                          currentQuestion.type === "number" ? "number" : "text"
+                          currentQuestion.id === "declaredValue"
+                            ? "text"
+                            : currentQuestion.type === "number"
+                            ? "number"
+                            : "text"
                         }
                         value={
-                          quizState.answers[
-                            currentQuestion.id
-                          ]?.value?.toString() || ""
+                          currentQuestion.id === "declaredValue"
+                            ? quizState.answers[currentQuestion.id]?.value
+                              ? `₦${parseFloat(
+                                  String(
+                                    quizState.answers[currentQuestion.id]?.value
+                                  ).replace(/[₦,]/g, "") || "0"
+                                ).toLocaleString()}`
+                              : ""
+                            : quizState.answers[
+                                currentQuestion.id
+                              ]?.value?.toString() || ""
                         }
                         onChange={(e) => {
-                          const value =
-                            currentQuestion.type === "number"
-                              ? Number(e.target.value)
-                              : e.target.value;
-                          handleAnswer(currentQuestion.id, value);
+                          if (currentQuestion.id === "declaredValue") {
+                            // Remove currency symbol and commas, keep only numbers
+                            const numericValue = e.target.value.replace(
+                              /[₦,]/g,
+                              ""
+                            );
+                            if (
+                              numericValue === "" ||
+                              /^\d+$/.test(numericValue)
+                            ) {
+                              handleAnswer(
+                                currentQuestion.id,
+                                numericValue ? Number(numericValue) : ""
+                              );
+                            }
+                          } else {
+                            const value =
+                              currentQuestion.type === "number"
+                                ? Number(e.target.value)
+                                : e.target.value;
+                            handleAnswer(currentQuestion.id, value);
+                          }
                         }}
                         placeholder={
-                          currentQuestion.type === "number"
+                          currentQuestion.id === "declaredValue"
+                            ? "₦1,000,000"
+                            : currentQuestion.type === "number"
                             ? "Enter number"
                             : "Enter details"
                         }
@@ -2349,15 +2393,22 @@ export function GetQuote() {
                   Amount to Fund
                 </label>
                 <Input
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min={Math.max(
-                    0,
-                    (quizState.premiumBreakdown?.total || 0) -
-                      (walletData?.data?.wallet?.balance || 0)
-                  )}
+                  type="text"
+                  value={
+                    fundAmount
+                      ? `₦${parseFloat(
+                          fundAmount.replace(/[₦,]/g, "") || "0"
+                        ).toLocaleString()}`
+                      : ""
+                  }
+                  onChange={(e) => {
+                    // Remove currency symbol and commas, keep only numbers
+                    const numericValue = e.target.value.replace(/[₦,]/g, "");
+                    if (numericValue === "" || /^\d+$/.test(numericValue)) {
+                      setFundAmount(numericValue);
+                    }
+                  }}
+                  placeholder="₦0"
                   className="text-lg p-4"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
