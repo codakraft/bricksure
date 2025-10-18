@@ -120,53 +120,6 @@ interface Question {
   microCopy?: string;
 }
 
-// Premium Table Configuration
-const PREMIUM_TABLE = {
-  version: "pt_v1",
-  categories: {
-    SINGLE_OCC_OFFICE: {
-      label: "Single Occupier – Office Building",
-      charges: { perFloor: 10000, perPlot: 5000 },
-    },
-    SINGLE_OCC_RESIDENTIAL: {
-      label: "Single Occupier – Residential Building",
-      charges: { perFloor: 5000, perPlot: 5000 },
-    },
-    HOTEL_HOSTEL_GUEST: {
-      label: "Hotel/Hostel/Guest House",
-      charges: { perRoom: 1500, perBed: 500 },
-    },
-    RECREATION_CINEMA: {
-      label: "Recreation Centre/Cinema Halls",
-      charges: { perFloor: 15000, perCinemaSeat: 200 },
-    },
-    SCHOOLS_TRAINING: {
-      label: "Schools & Training Institutions",
-      charges: { perBlock: 5000, perPupilSeat: 100 },
-    },
-    PETROL_GAS_STATION: {
-      label: "Petrol/Gas Station",
-      charges: { perPump: 10000 },
-    },
-    HOSPITAL_CLINIC: {
-      label: "Hospital/Health Centre & Clinics",
-      charges: { perFloor: 12000, perPlot: 6000 },
-    },
-    MULTI_OCC_BUSINESS: {
-      label: "Multi-Occupier – Multi-Purpose Business Building",
-      charges: { perApartmentOfficeWing: 10000 },
-    },
-    MULTI_OCC_MIXED_RES: {
-      label: "Multi-Occupier – Mixed-use Residential Building",
-      charges: { perApartmentOfficeWing: 7500 },
-    },
-    OTHERS: {
-      label: "Others",
-      charges: { perFloor: 5000, perPlot: 5000 },
-    },
-  },
-};
-
 export function GetQuote() {
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -211,6 +164,7 @@ export function GetQuote() {
   const [lastCalculationTime, setLastCalculationTime] = useState(0);
 
   // Helper functions to extract quiz answers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getQuizAnswerValue = (questionId: string): any => {
     return quizState.answers[questionId]?.value || null;
   };
@@ -1226,69 +1180,121 @@ export function GetQuote() {
 
       const answers = quizState.answers;
       const category = determinePropertyCategory(answers);
-      const categoryConfig =
-        PREMIUM_TABLE.categories[
-          category as keyof typeof PREMIUM_TABLE.categories
-        ];
 
-      // Calculate premium table base
+      // Get category configuration from chargesData
+      if (!chargesData?.data?.categories) {
+        throw new Error("Charges data not available");
+      }
+
+      const categories = chargesData.data.categories;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let categoryConfig: any = null;
+
+      // Map category to API structure
+      switch (category) {
+        case "SINGLE_OCC_OFFICE":
+          categoryConfig = categories.propertyCategory.singleOccOffice;
+          break;
+        case "SINGLE_OCC_RESIDENTIAL":
+          categoryConfig = categories.propertyCategory.singleOccResidential;
+          break;
+        case "HOTEL_HOSTEL_GUEST":
+          categoryConfig = categories.propertyCategory.hotelHostelGuest;
+          break;
+        case "RECREATION_CINEMA":
+          categoryConfig = categories.propertyCategory.recreationCinema;
+          break;
+        case "SCHOOLS_TRAINING":
+          categoryConfig = categories.propertyCategory.schoolTraining;
+          break;
+        case "PETROL_GAS_STATION":
+          categoryConfig = categories.propertyCategory.petrolGasStation;
+          break;
+        case "HOSPITAL_CLINIC":
+          categoryConfig = categories.propertyCategory.hospitalClinic;
+          break;
+        case "MULTI_OCC_BUSINESS":
+          categoryConfig = categories.propertyCategory.multiOccBusiness;
+          break;
+        case "MULTI_OCC_MIXED_RES":
+          categoryConfig = categories.propertyCategory.multiOccMixedRes;
+          break;
+        default:
+          categoryConfig = categories.propertyCategory.others;
+      }
+
+      if (!categoryConfig?.charges) {
+        throw new Error("Category configuration not found");
+      }
+
+      // Calculate premium table base using API charges (convert strings to numbers)
       let premiumTableBase = 0;
-      const breakdown: any = {};
+      const breakdown: Record<string, number> = {};
 
       if (categoryConfig.charges.perFloor && answers.floors) {
         const floors = Number(answers.floors.value) || 1;
-        premiumTableBase += floors * categoryConfig.charges.perFloor;
-        breakdown.floors = floors * categoryConfig.charges.perFloor;
+        const perFloorCharge = Number(categoryConfig.charges.perFloor) || 0;
+        premiumTableBase += floors * perFloorCharge;
+        breakdown.floors = floors * perFloorCharge;
       }
 
       if (categoryConfig.charges.perPlot && answers.plots) {
         const plots = Number(answers.plots.value) || 1;
-        premiumTableBase += plots * categoryConfig.charges.perPlot;
-        breakdown.plots = plots * categoryConfig.charges.perPlot;
+        const perPlotCharge = Number(categoryConfig.charges.perPlot) || 0;
+        premiumTableBase += plots * perPlotCharge;
+        breakdown.plots = plots * perPlotCharge;
       }
 
       if (categoryConfig.charges.perRoom && answers.rooms) {
         const rooms = Number(answers.rooms.value) || 0;
-        premiumTableBase += rooms * categoryConfig.charges.perRoom;
-        breakdown.rooms = rooms * categoryConfig.charges.perRoom;
+        const perRoomCharge = Number(categoryConfig.charges.perRoom) || 0;
+        premiumTableBase += rooms * perRoomCharge;
+        breakdown.rooms = rooms * perRoomCharge;
       }
 
       if (categoryConfig.charges.perBed && answers.beds) {
         const beds = Number(answers.beds.value) || 0;
-        premiumTableBase += beds * categoryConfig.charges.perBed;
-        breakdown.beds = beds * categoryConfig.charges.perBed;
+        const perBedCharge = Number(categoryConfig.charges.perBed) || 0;
+        premiumTableBase += beds * perBedCharge;
+        breakdown.beds = beds * perBedCharge;
       }
 
       if (categoryConfig.charges.perPump && answers.pumps) {
         const pumps = Number(answers.pumps.value) || 0;
-        premiumTableBase += pumps * categoryConfig.charges.perPump;
-        breakdown.pumps = pumps * categoryConfig.charges.perPump;
+        const perPumpCharge = Number(categoryConfig.charges.perPump) || 0;
+        premiumTableBase += pumps * perPumpCharge;
+        breakdown.pumps = pumps * perPumpCharge;
       }
 
       if (categoryConfig.charges.perCinemaSeat && answers.seats) {
         const seats = Number(answers.seats.value) || 0;
-        premiumTableBase += seats * categoryConfig.charges.perCinemaSeat;
-        breakdown.seats = seats * categoryConfig.charges.perCinemaSeat;
+        const perCinemaSeatCharge =
+          Number(categoryConfig.charges.perCinemaSeat) || 0;
+        premiumTableBase += seats * perCinemaSeatCharge;
+        breakdown.seats = seats * perCinemaSeatCharge;
       }
 
       if (categoryConfig.charges.perBlock && answers.blocks) {
         const blocks = Number(answers.blocks.value) || 0;
-        premiumTableBase += blocks * categoryConfig.charges.perBlock;
-        breakdown.blocks = blocks * categoryConfig.charges.perBlock;
+        const perBlockCharge = Number(categoryConfig.charges.perBlock) || 0;
+        premiumTableBase += blocks * perBlockCharge;
+        breakdown.blocks = blocks * perBlockCharge;
       }
 
       if (categoryConfig.charges.perPupilSeat && answers.pupilSeats) {
         const pupilSeats = Number(answers.pupilSeats.value) || 0;
-        premiumTableBase += pupilSeats * categoryConfig.charges.perPupilSeat;
-        breakdown.pupilSeats = pupilSeats * categoryConfig.charges.perPupilSeat;
+        const perPupilSeatCharge =
+          Number(categoryConfig.charges.perPupilSeat) || 0;
+        premiumTableBase += pupilSeats * perPupilSeatCharge;
+        breakdown.pupilSeats = pupilSeats * perPupilSeatCharge;
       }
 
       if (categoryConfig.charges.perApartmentOfficeWing && answers.apartments) {
         const apartments = Number(answers.apartments.value) || 0;
-        premiumTableBase +=
-          apartments * categoryConfig.charges.perApartmentOfficeWing;
-        breakdown.apartments =
-          apartments * categoryConfig.charges.perApartmentOfficeWing;
+        const perApartmentOfficeWingCharge =
+          Number(categoryConfig.charges.perApartmentOfficeWing) || 0;
+        premiumTableBase += apartments * perApartmentOfficeWingCharge;
+        breakdown.apartments = apartments * perApartmentOfficeWingCharge;
       }
 
       // Risk units calculation
@@ -1480,7 +1486,8 @@ export function GetQuote() {
         premiumBreakdown,
         propertyCategory: category,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Premium calculation error:", error);
       addToast({
         type: "error",
         title: "Calculation Error",
@@ -1489,7 +1496,7 @@ export function GetQuote() {
     } finally {
       setCalculatingPremium(false);
     }
-  }, [quizState.answers, lastCalculationTime, addToast]);
+  }, [quizState.answers, lastCalculationTime, addToast, chargesData]);
 
   // Trigger calculation when relevant answers change
   useEffect(() => {
@@ -2122,10 +2129,7 @@ export function GetQuote() {
               </Card>
 
               {/* Help Card */}
-              <Card
-                className="p-6 animate-in slide-in-from-right-4 duration-500"
-                style={{ animationDelay: "200ms" }}
-              >
+              <Card className="p-6 animate-in slide-in-from-right-4 duration-500 delay-200">
                 <div className="flex items-center space-x-3 mb-4">
                   <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   <h3 className="font-semibold text-gray-900 dark:text-white">

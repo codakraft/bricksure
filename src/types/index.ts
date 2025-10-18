@@ -285,104 +285,104 @@ export interface CreateQuoteRequest {
 }
 
 export interface CreateQuoteResponse {
-  message: string
-  data: CreateQuoteData
+  message: string;
+  data: CreateQuoteData;
 }
 
 export interface CreateQuoteData {
-  property: PropertyData
+  property: PropertyData;
 }
 
 export interface PropertyData {
-  user: string
-  status: string
-  address: string
-  state: string
-  propertyType: string
-  year: number
-  buildingMaterials: string
-  occupancyStatus: string
-  paymentFrequency: string
-  policy: string
-  propertyValue: string
-  extraCoverage: ExtraCoverage
-  concerns: string[]
-  totalAmount: number
-  nextPayment: string
-  policyPeriod: string
-  _id: string
-  createdAt: string
-  updatedAt: string
-  policyCode: string
-  __v: number
+  user: string;
+  status: string;
+  address: string;
+  state: string;
+  propertyType: string;
+  year: number;
+  buildingMaterials: string;
+  occupancyStatus: string;
+  paymentFrequency: string;
+  policy: string;
+  propertyValue: string;
+  extraCoverage: ExtraCoverage;
+  concerns: string[];
+  totalAmount: number;
+  nextPayment: string;
+  policyPeriod: string;
+  _id: string;
+  createdAt: string;
+  updatedAt: string;
+  policyCode: string;
+  __v: number;
 }
 
 export interface ExtraCoverage {
-  lossOfRent: boolean
-  publicLiability: boolean
-  accidentalDamage: boolean
-  contentsIssurance: boolean
+  lossOfRent: boolean;
+  publicLiability: boolean;
+  accidentalDamage: boolean;
+  contentsIssurance: boolean;
 }
 
 export interface ViewAllPropertiesResponse {
-  message: string
-  data: ViewAllPropData[]
-  metaData: MetaData
+  message: string;
+  data: ViewAllPropData[];
+  metaData: MetaData;
 }
 
 export interface ViewAllPropData {
-  extraCoverage: ExtraCoverage
-  _id: string
-  user: string
-  status: string
-  address: string
-  state: string
-  propertyType: string
-  year: number
-  buildingMaterials: string
-  occupancyStatus: string
-  paymentFrequency: string
-  policy: string
-  propertyValue: string
-  concerns: string[]
-  totalAmount: number
-  nextPayment: string
-  policyPeriod: string
-  createdAt: string
-  updatedAt: string
-  policyCode: string
-  amountPaid: number
-  __v: number
+  extraCoverage: ExtraCoverage;
+  _id: string;
+  user: string;
+  status: string;
+  address: string;
+  state: string;
+  propertyType: string;
+  year: number;
+  buildingMaterials: string;
+  occupancyStatus: string;
+  paymentFrequency: string;
+  policy: string;
+  propertyValue: string;
+  concerns: string[];
+  totalAmount: number;
+  nextPayment: string;
+  policyPeriod: string;
+  createdAt: string;
+  updatedAt: string;
+  policyCode: string;
+  amountPaid: number;
+  __v: number;
 }
 
 export interface ExtraCoverage {
-  lossOfRent: boolean
-  publicLiability: boolean
-  accidentalDamage: boolean
-  contentsIssurance: boolean
+  lossOfRent: boolean;
+  publicLiability: boolean;
+  accidentalDamage: boolean;
+  contentsIssurance: boolean;
 }
 
 export interface MetaData {
-  totalProperties: number
-  page: number
-  totalPages: number
-  currentPage: number
-  hasNextPage: boolean
-  hasPrevPage: boolean
+  totalProperties: number;
+  page: number;
+  totalPages: number;
+  currentPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 export interface ViewPropertyByIdResponse {
-  message: string
-  data: ViewPropertyByIdData
+  message: string;
+  data: ViewPropertyByIdData;
 }
 
 export interface ViewPropertyByIdData {
-  property: ViewAllPropData
+  property: ViewAllPropData;
 }
 
 export interface AuthUserResponse {
-  message: string
-  data: AuthUserData
+  message: string;
+  data: AuthUserData;
 }
 
 export interface ForgotPasswordRequest {
@@ -408,186 +408,193 @@ export interface ResetPasswordResponse {
 }
 
 export interface AuthUserData {
-  user: UserAuth
+  user: UserAuth;
 }
 
 export interface UserAuth {
-  _id: string
-  firstName: string
-  lastName: string
-  email: string
-  emailVerified: boolean
-  disabled: boolean
-  phoneNumber: string
-  createdAt: string
-  updatedAt: string
-  __v: number
-  emailOtp: string
-  emailOtpSentAt: string
-  otp: string
-  otpSentAt: string | null
-  sessionId: string
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  emailVerified: boolean;
+  disabled: boolean;
+  phoneNumber: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+  emailOtp: string;
+  emailOtpSentAt: string;
+  otp: string;
+  otpSentAt: string | null;
+  sessionId: string;
 }
 
 // charges types
 
 export interface ChargesResponse {
-  message: string
-  data: ChargesResponseData
+  message: string;
+  data: ChargesResponseData;
 }
 
 export interface ChargesResponseData {
-  categories: ChargesCategories
+  categories: ChargesCategories;
 }
 
 export interface ChargesCategories {
-  propertyBaseFee: string
-  propertyCategory: PropertyCategory
-  pastLoss: string
-  wallMaterial: WallMaterial
-  buildingAge: BuildingAge
-  floodRisk: string
-  specialRisk: number
-  securitySafety: SecuritySafety
-  fireSafety: FireSafety
-  repairNeeded: string
-  commercialUse: string
-  extraCoverage: ChargesExtraCoverage
+  propertyBaseFee: string;
+  propertyCategory: PropertyCategory;
+  pastLoss: string;
+  wallMaterial: WallMaterial;
+  buildingAge: BuildingAge;
+  floodRisk: string;
+  specialRisk: number;
+  securitySafety: SecuritySafety;
+  fireSafety: FireSafety;
+  repairNeeded: string;
+  commercialUse: string;
+  extraCoverage: ChargesExtraCoverage;
 }
 
 export interface PropertyCategory {
-  singleOccOffice: SingleOccOffice
-  singleOccResidential: SingleOccResidential
-  hotelHostelGuest: HotelHostelGuest
-  recreationCinema: RecreationCinema
-  schoolTraining: SchoolTraining
-  petrolGasStation: PetrolGasStation
-  hospitalClinic: HospitalClinic
-  multiOccBusiness: MultiOccBusiness
-  multiOccMixedRes: MultiOccMixedRes
-  others: Others
+  singleOccOffice: SingleOccOffice;
+  singleOccResidential: SingleOccResidential;
+  hotelHostelGuest: HotelHostelGuest;
+  recreationCinema: RecreationCinema;
+  schoolTraining: SchoolTraining;
+  petrolGasStation: PetrolGasStation;
+  hospitalClinic: HospitalClinic;
+  multiOccBusiness: MultiOccBusiness;
+  multiOccMixedRes: MultiOccMixedRes;
+  others: Others;
 }
 
 export interface SingleOccOffice {
-  charges: Charges
+  charges: Charges;
 }
 
 export interface Charges {
-  perFloor: string
-  perPlot: string
+  perFloor: string;
+  perPlot: string;
 }
 
 export interface SingleOccResidential {
-  charges: Charges2
+  charges: Charges2;
 }
 
 export interface Charges2 {
-  perFloor: string
-  perPlot: string
+  perFloor: string;
+  perPlot: string;
 }
 
 export interface HotelHostelGuest {
-  charges: Charges3
+  charges: Charges3;
 }
 
 export interface Charges3 {
-  perRoom: string
-  perBed: string
+  perRoom: string;
+  perBed: string;
 }
 
 export interface RecreationCinema {
-  charges: Charges4
+  charges: Charges4;
 }
 
 export interface Charges4 {
-  perFloor: string
-  perCinemaSeat: string
+  perFloor: string;
+  perCinemaSeat: string;
 }
 
 export interface SchoolTraining {
-  charges: Charges5
+  charges: Charges5;
 }
 
 export interface Charges5 {
-  perBlock: string
-  perPupilSeat: string
+  perBlock: string;
+  perPupilSeat: string;
 }
 
 export interface PetrolGasStation {
-  charges: Charges6
+  charges: Charges6;
 }
 
 export interface Charges6 {
-  perPump: string
+  perPump: string;
 }
 
 export interface HospitalClinic {
-  charges: Charges7
+  charges: Charges7;
 }
 
 export interface Charges7 {
-  perFloor: string
-  perPlot: string
+  perFloor: string;
+  perPlot: string;
 }
 
 export interface MultiOccBusiness {
-  charges: Charges8
+  charges: Charges8;
 }
 
 export interface Charges8 {
-  perApartmentOfficeWing: string
+  perApartmentOfficeWing: string;
 }
 
 export interface MultiOccMixedRes {
-  charges: Charges9
+  charges: Charges9;
 }
 
 export interface Charges9 {
-  perApartmentOfficeWing: string
+  perApartmentOfficeWing: string;
 }
 
 export interface Others {
-  charges: Charges10
+  charges: Charges10;
 }
 
 export interface Charges10 {
-  perFloor: string
-  perPlot: string
+  perFloor: string;
+  perPlot: string;
 }
 
 export interface WallMaterial {
-  brick: string
-  mud: string
-  wood: string
-  mixedMaterials: string
+  brick: string;
+  mud: string;
+  wood: string;
+  mixedMaterials: string;
 }
 
 export interface BuildingAge {
-  "0-5": string
-  "5-10": string
-  "10-20": string
-  "20+": string
+  "0-5": string;
+  "5-10": string;
+  "10-20": string;
+  "20+": string;
 }
 
 export interface SecuritySafety {
-  estateGate: string
-  cctv: string
-  securityGuards: string
-  strongLocks: string
-  noGlassPanels: string
-  occupied: string
+  estateGate: string;
+  cctv: string;
+  securityGuards: string;
+  strongLocks: string;
+  noGlassPanels: string;
+  occupied: string;
 }
 
 export interface FireSafety {
-  fireExtinguisher: string
-  smokeAlarm: string
-  waterAccess: string
+  fireExtinguisher: string;
+  smokeAlarm: string;
+  waterAccess: string;
 }
 
 export interface ChargesExtraCoverage {
-  theft: string
-  floodProtection: string
-  publicLiability: string
-  extendedFireCover: string
-  burglaryCover: string
+  theft: string;
+  floodProtection: string;
+  publicLiability: string;
+  extendedFireCover: string;
+  burglaryCover: string;
+}
+
+export interface SeaLevelResponse {
+  location: string;
+  sea_level_assessment: string;
+  success: boolean;
+  error: null;
 }
