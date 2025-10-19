@@ -1297,99 +1297,180 @@ export function GetQuote() {
         breakdown.apartments = apartments * perApartmentOfficeWingCharge;
       }
 
-      // Risk units calculation
-      let riskUnits = 0;
-      const baseRiskRate = 2000;
+      // Risk percentage modifiers from API (applied on premium)
+      let totalRiskModifier = 0; // This will be a percentage like 0.05 for 5%
 
-      // Age risk
+      // Age risk from API (percentage modifiers)
       const buildingAge = answers.buildingAge?.value as string;
-      if (buildingAge === "old") riskUnits += 3;
-      else if (buildingAge === "mature") riskUnits += 1;
+      const ageRisks = chargesData.data.categories.buildingAge;
+      console.log("Building Age:", buildingAge);
+      console.log("Age Risks from API:", ageRisks);
 
-      // Material risk
+      if (buildingAge === "old" && ageRisks?.["20+"]) {
+        totalRiskModifier += Number(ageRisks["20+"]); // e.g., 0.25 for 25% surcharge
+        console.log("Applied old building risk:", Number(ageRisks["20+"]));
+      } else if (buildingAge === "mature" && ageRisks?.["10-20"]) {
+        totalRiskModifier += Number(ageRisks["10-20"]); // e.g., 0.10 for 10% surcharge
+        console.log("Applied mature building risk:", Number(ageRisks["10-20"]));
+      } else if (buildingAge === "recent" && ageRisks?.["5-10"]) {
+        totalRiskModifier += Number(ageRisks["5-10"]); // e.g., -0.05 for 5% discount
+        console.log("Applied recent building risk:", Number(ageRisks["5-10"]));
+      } else if (buildingAge === "new" && ageRisks?.["0-5"]) {
+        totalRiskModifier += Number(ageRisks["0-5"]); // e.g., -0.01 for 1% discount
+        console.log("Applied new building risk:", Number(ageRisks["0-5"]));
+      }
+      console.log("Total Risk after Age:", totalRiskModifier);
+
+      // Material risk from API (percentage modifiers)
       const wallMaterial = answers.wallMaterial?.value as string;
-      if (wallMaterial === "wood") riskUnits += 2;
-      else if (wallMaterial === "mud") riskUnits += 3;
-
-      // Condition risk
-      if (answers.buildingCondition?.value === "no") riskUnits += 2;
-
-      // Water proximity risk
-      if (
-        ["sea", "river", "reservoir"].includes(
-          answers.waterProximity?.value as string
-        )
-      ) {
-        riskUnits += 4;
+      const materialRisks = chargesData.data.categories.wallMaterial;
+      if (wallMaterial === "wood" && materialRisks?.wood) {
+        totalRiskModifier += Number(materialRisks.wood); // e.g., 0.15 for 15% surcharge
+      } else if (wallMaterial === "mud" && materialRisks?.mud) {
+        totalRiskModifier += Number(materialRisks.mud); // e.g., 0.20 for 20% surcharge
+      } else if (wallMaterial === "brick" && materialRisks?.brick) {
+        totalRiskModifier += Number(materialRisks.brick); // e.g., -0.05 for 5% discount
+      } else if (wallMaterial === "mixed" && materialRisks?.mixedMaterials) {
+        totalRiskModifier += Number(materialRisks.mixedMaterials); // e.g., 0.05 for 5% surcharge
       }
 
-      // Past losses risk
-      if (answers.pastLosses?.value === "yes") riskUnits += 3;
+      // Condition risk (percentage modifier)
+      if (answers.buildingCondition?.value === "no") {
+        const conditionRisk =
+          Number(chargesData.data.categories.repairNeeded) || 0.1;
+        totalRiskModifier += conditionRisk; // e.g., 0.10 for 10% surcharge
+      }
 
-      // Nearby risks
+      // Water proximity/flood risk from API (percentage modifier)
+      const waterProximity = answers.waterProximity?.value as string;
+      if (["sea", "river", "reservoir"].includes(waterProximity)) {
+        const floodRisk = Number(chargesData.data.categories.floodRisk) || 0.3;
+        totalRiskModifier += floodRisk; // e.g., 0.30 for 30% surcharge
+      }
+
+      // Past losses risk (percentage modifier)
+      if (answers.pastLosses?.value === "yes") {
+        const pastLossesRisk =
+          Number(chargesData.data.categories.pastLoss) || 0.2;
+        totalRiskModifier += pastLossesRisk; // e.g., 0.20 for 20% surcharge
+      }
+
+      // Nearby/special risks (percentage modifier)
       const nearbyRisk = answers.nearbyRisks?.value as string;
-      if (nearbyRisk === "petrol") riskUnits += 2;
-      else if (nearbyRisk === "industrial") riskUnits += 3;
+      if (["petrol", "industrial"].includes(nearbyRisk)) {
+        const specialRisk =
+          Number(chargesData.data.categories.specialRisk) || 0.2;
+        totalRiskModifier += specialRisk; // e.g., 0.20 for 20% surcharge
+      }
 
-      const riskUnitsTotal = riskUnits * baseRiskRate;
+      // propertyBaseFee is a fixed base amount (e.g., 5000), not a percentage
+      const propertyBaseFee =
+        Number(chargesData.data.categories.propertyBaseFee) || 5000;
 
-      // Declared value units
-      const declaredValue = Number(answers.declaredValue?.value) || 0;
-      const dvUnits = (declaredValue / 1000000) * baseRiskRate;
-
-      // Calculate subtotal
-      const subtotal = premiumTableBase + riskUnitsTotal + dvUnits;
+      // Calculate initial subtotal: premium table base + property base fee
+      const subtotal = premiumTableBase + propertyBaseFee;
+      console.log("Initial Subtotal (before discounts/surcharges):", subtotal);
 
       // Calculate discounts
       const discounts = [];
       const security = (answers.security?.value as string[]) || [];
       const fireSafety = (answers.fireSafety?.value as string[]) || [];
+      const apiSecuritySafety = chargesData.data.categories.securitySafety;
+      const apiFireSafety = chargesData.data.categories.fireSafety;
 
+      // Security discounts from API
       if (security.includes("gate") && security.includes("guards")) {
+        const gateDiscount = Number(apiSecuritySafety?.estateGate) || 0;
+        const guardDiscount = Number(apiSecuritySafety?.securityGuards) || 0;
+        const totalDiscount = gateDiscount + guardDiscount;
         discounts.push({
           name: "High Security Discount",
-          amount: 0.15,
+          amount: totalDiscount,
           type: "percentage" as const,
         });
       } else if (security.length >= 2) {
-        discounts.push({
-          name: "Security Discount",
-          amount: 0.08,
-          type: "percentage" as const,
+        // Calculate combined discount for multiple security features
+        let totalDiscount = 0;
+        security.forEach((feature) => {
+          if (feature === "gate" && apiSecuritySafety?.estateGate) {
+            totalDiscount += Number(apiSecuritySafety.estateGate);
+          } else if (
+            feature === "guards" &&
+            apiSecuritySafety?.securityGuards
+          ) {
+            totalDiscount += Number(apiSecuritySafety.securityGuards);
+          } else if (feature === "cctv" && apiSecuritySafety?.cctv) {
+            totalDiscount += Number(apiSecuritySafety.cctv);
+          } else if (feature === "locks" && apiSecuritySafety?.strongLocks) {
+            totalDiscount += Number(apiSecuritySafety.strongLocks);
+          }
         });
+        if (totalDiscount > 0) {
+          discounts.push({
+            name: "Security Discount",
+            amount: totalDiscount,
+            type: "percentage" as const,
+          });
+        }
       }
 
+      // Fire safety discounts from API
       if (fireSafety.includes("extinguisher") && fireSafety.includes("alarm")) {
+        const extinguisherDiscount =
+          Number(apiFireSafety?.fireExtinguisher) || 0;
+        const alarmDiscount = Number(apiFireSafety?.smokeAlarm) || 0;
+        const totalDiscount = extinguisherDiscount + alarmDiscount;
         discounts.push({
           name: "Fire Safety Discount",
-          amount: 0.12,
+          amount: totalDiscount,
           type: "percentage" as const,
         });
       } else if (fireSafety.length >= 1) {
-        discounts.push({
-          name: "Basic Fire Safety Discount",
-          amount: 0.05,
-          type: "percentage" as const,
+        // Calculate combined discount for fire safety features
+        let totalDiscount = 0;
+        fireSafety.forEach((feature) => {
+          if (feature === "extinguisher" && apiFireSafety?.fireExtinguisher) {
+            totalDiscount += Number(apiFireSafety.fireExtinguisher);
+          } else if (feature === "alarm" && apiFireSafety?.smokeAlarm) {
+            totalDiscount += Number(apiFireSafety.smokeAlarm);
+          } else if (feature === "water" && apiFireSafety?.waterAccess) {
+            totalDiscount += Number(apiFireSafety.waterAccess);
+          }
         });
+        if (totalDiscount > 0) {
+          discounts.push({
+            name: "Basic Fire Safety Discount",
+            amount: totalDiscount,
+            type: "percentage" as const,
+          });
+        }
       }
 
-      if (buildingAge === "new") {
-        discounts.push({
-          name: "New Property Discount",
-          amount: 0.08,
-          type: "percentage" as const,
-        });
+      // New building discount already applied in age risk modifier above
+      if (buildingAge === "new" && ageRisks?.["0-5"]) {
+        const newBuildingBonus = Number(ageRisks["0-5"]);
+        if (newBuildingBonus < 0) {
+          discounts.push({
+            name: "New Property Discount",
+            amount: Math.abs(newBuildingBonus),
+            type: "percentage" as const,
+          });
+        }
       }
 
-      // Calculate surcharges
+      // Calculate surcharges (these are already included in totalRiskModifier above)
+      // We're creating this list for display purposes in the breakdown
       const surcharges = [];
 
-      if (buildingAge === "old") {
-        surcharges.push({
-          name: "Old Property Surcharge",
-          amount: 0.25,
-          type: "percentage" as const,
-        });
+      if (buildingAge === "old" && ageRisks?.["20+"]) {
+        const oldBuildingSurcharge = Number(ageRisks["20+"]);
+        if (oldBuildingSurcharge > 0) {
+          surcharges.push({
+            name: "Old Property Surcharge",
+            amount: oldBuildingSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       if (
@@ -1397,27 +1478,41 @@ export function GetQuote() {
           answers.waterProximity?.value as string
         )
       ) {
-        surcharges.push({
-          name: "Flood Risk Surcharge",
-          amount: 0.3,
-          type: "percentage" as const,
-        });
+        const floodRiskSurcharge =
+          Number(chargesData.data.categories.floodRisk) || 0;
+        if (floodRiskSurcharge > 0) {
+          surcharges.push({
+            name: "Flood Risk Surcharge",
+            amount: floodRiskSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
-      if (answers.nearbyRisks?.value === "industrial") {
-        surcharges.push({
-          name: "Industrial Risk Surcharge",
-          amount: 0.2,
-          type: "percentage" as const,
-        });
+      if (
+        ["petrol", "industrial"].includes(answers.nearbyRisks?.value as string)
+      ) {
+        const specialRiskSurcharge =
+          Number(chargesData.data.categories.specialRisk) || 0;
+        if (specialRiskSurcharge > 0) {
+          surcharges.push({
+            name: "Special Risk Surcharge",
+            amount: specialRiskSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       if (answers.businessUse?.value === "yes") {
-        surcharges.push({
-          name: "Commercial Use Surcharge",
-          amount: 0.15,
-          type: "percentage" as const,
-        });
+        const commercialUseSurcharge =
+          Number(chargesData.data.categories.commercialUse) || 0;
+        if (commercialUseSurcharge > 0) {
+          surcharges.push({
+            name: "Commercial Use Surcharge",
+            amount: commercialUseSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       // Apply discounts and surcharges
@@ -1438,21 +1533,22 @@ export function GetQuote() {
         }
       });
 
-      // Add rider costs
+      // Add rider costs from API
       const riders = (answers.riders?.value as string[]) || [];
+      const apiExtraCoverage = chargesData.data.categories.extraCoverage;
       const riderCosts = {
-        flood: 5000,
-        burglary: 3000,
-        fire: 4000,
-        liability: 6000,
-        materials: 2500,
+        flood: Number(apiExtraCoverage?.floodProtection) || 5000,
+        burglary: Number(apiExtraCoverage?.burglaryCover) || 3000,
+        fire: Number(apiExtraCoverage?.extendedFireCover) || 4000,
+        liability: Number(apiExtraCoverage?.publicLiability) || 6000,
+        theft: Number(apiExtraCoverage?.theft) || 2500,
       };
 
       riders.forEach((rider) => {
         total += riderCosts[rider as keyof typeof riderCosts] || 0;
       });
 
-      // Apply frequency multiplier
+      // Apply frequency multiplier (if available from API in the future)
       const frequency = (answers.paymentFrequency?.value as string) || "annual";
       const frequencyMultipliers = {
         monthly: 1.15,
@@ -1465,13 +1561,21 @@ export function GetQuote() {
         frequencyMultipliers[frequency as keyof typeof frequencyMultipliers];
       total *= frequencyMultiplier;
 
-      // Ensure minimum premium
+      // NOW Apply total risk modifier as a percentage to the total amount
+      console.log("Total before risk adjustment:", total);
+      console.log("Total Risk Modifier (as percentage):", totalRiskModifier);
+      const riskAdjustment = total * totalRiskModifier;
+      console.log("Risk Adjustment Amount:", riskAdjustment);
+      total += riskAdjustment;
+      console.log("Total after risk adjustment:", total);
+
+      // Ensure minimum premium (could also come from API in the future)
       total = Math.max(total, 15000);
 
       const premiumBreakdown: PremiumBreakdown = {
         premiumTableBase,
-        riskUnits: riskUnitsTotal,
-        dvUnits,
+        riskUnits: riskAdjustment, // This is now the actual naira amount from risk percentage
+        dvUnits: propertyBaseFee, // Fixed base fee from API
         subtotal,
         discounts,
         surcharges,
