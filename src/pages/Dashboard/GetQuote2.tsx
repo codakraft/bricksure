@@ -1337,7 +1337,7 @@ export function GetQuote() {
       // Condition risk (percentage modifier)
       if (answers.buildingCondition?.value === "no") {
         const conditionRisk =
-          Number(chargesData.data.categories.repairNeeded) || 0.1;
+          Number(chargesData.data.categories.repairNeeded) || 0.01;
         totalRiskModifier += conditionRisk; // e.g., 0.10 for 10% surcharge
       }
 
@@ -1368,8 +1368,15 @@ export function GetQuote() {
         Number(chargesData.data.categories.propertyBaseFee) || 5000;
 
       // Calculate initial subtotal: premium table base + property base fee
-      const subtotal = premiumTableBase + propertyBaseFee;
-      console.log("Initial Subtotal (before discounts/surcharges):", subtotal);
+      let subtotal = premiumTableBase + propertyBaseFee;
+      console.log("Initial Subtotal (before risk adjustment):", subtotal);
+
+      // FIRST: Apply total risk modifier to subtotal
+      console.log("Total Risk Modifier (as percentage):", totalRiskModifier);
+      const riskAdjustmentOnSubtotal = subtotal * totalRiskModifier;
+      console.log("Risk Adjustment on Subtotal:", riskAdjustmentOnSubtotal);
+      subtotal += riskAdjustmentOnSubtotal;
+      console.log("Subtotal after risk adjustment:", subtotal);
 
       // Calculate discounts
       const discounts = [];
@@ -1561,20 +1568,24 @@ export function GetQuote() {
         frequencyMultipliers[frequency as keyof typeof frequencyMultipliers];
       total *= frequencyMultiplier;
 
-      // NOW Apply total risk modifier as a percentage to the total amount
-      console.log("Total before risk adjustment:", total);
-      console.log("Total Risk Modifier (as percentage):", totalRiskModifier);
-      const riskAdjustment = total * totalRiskModifier;
-      console.log("Risk Adjustment Amount:", riskAdjustment);
-      total += riskAdjustment;
-      console.log("Total after risk adjustment:", total);
+      // SECOND: Apply total risk modifier to the final total amount
+      console.log("Total before second risk adjustment:", total);
+      const riskAdjustmentOnTotal = total * totalRiskModifier;
+      console.log("Risk Adjustment on Total:", riskAdjustmentOnTotal);
+      total += riskAdjustmentOnTotal;
+      console.log("Total after second risk adjustment:", total);
+
+      // Calculate combined risk adjustment for breakdown
+      const totalRiskAdjustment =
+        riskAdjustmentOnSubtotal + riskAdjustmentOnTotal;
+      console.log("Combined Risk Adjustment:", totalRiskAdjustment);
 
       // Ensure minimum premium (could also come from API in the future)
       total = Math.max(total, 15000);
 
       const premiumBreakdown: PremiumBreakdown = {
         premiumTableBase,
-        riskUnits: riskAdjustment, // This is now the actual naira amount from risk percentage
+        riskUnits: totalRiskAdjustment, // Combined risk adjustment from both subtotal and total
         dvUnits: propertyBaseFee, // Fixed base fee from API
         subtotal,
         discounts,
