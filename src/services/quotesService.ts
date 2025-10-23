@@ -31,7 +31,7 @@ export const quotesApi = api.injectEndpoints({
       {
         query: (body) => ({
           url: `/api/v1/property/pay`,
-          method: "POST",
+          method: "PUT",
           body,
         }),
         invalidatesTags: ["Quote"],

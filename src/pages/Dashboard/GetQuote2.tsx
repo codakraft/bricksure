@@ -1132,40 +1132,49 @@ export function GetQuote() {
     const stepNumber =
       currentStep !== undefined ? currentStep : quizState.currentQuestion + 1;
 
-    // Get quote ID from localStorage for step 2 onwards
-    let quoteIdFromStorage: string | null = null;
-    if (stepNumber >= 2) {
-      quoteIdFromStorage = localStorage.getItem("currentQuoteId");
+    // Get quote ID from localStorage - check for ALL steps (needed for resume functionality)
+    const quoteIdFromStorage: string | null =
+      localStorage.getItem("currentQuoteId");
+
+    if (quoteIdFromStorage) {
       console.log(
         "Step",
         stepNumber,
         "- Retrieved Quote ID from localStorage:",
         quoteIdFromStorage
       );
+    }
 
-      if (!quoteIdFromStorage) {
-        console.error(
-          "CRITICAL: No quote ID found in localStorage for step",
-          stepNumber
-        );
-        console.log("localStorage contents:", {
-          currentQuoteId: localStorage.getItem("currentQuoteId"),
-          allKeys: Object.keys(localStorage),
-        });
+    // For step 2 onwards, quote ID is REQUIRED (unless resuming from step 1)
+    if (stepNumber >= 2 && !quoteIdFromStorage) {
+      console.error(
+        "CRITICAL: No quote ID found in localStorage for step",
+        stepNumber
+      );
+      console.log("localStorage contents:", {
+        currentQuoteId: localStorage.getItem("currentQuoteId"),
+        allKeys: Object.keys(localStorage),
+      });
 
-        addToast({
-          type: "error",
-          title: "Quote Session Lost",
-          message: "Please restart the quote process from step 1",
-        });
+      addToast({
+        type: "error",
+        title: "Quote Session Lost",
+        message: "Please restart the quote process from step 1",
+      });
 
-        // Optionally navigate back to step 1
-        // setQuizState(prev => ({ ...prev, currentQuestion: 0 }));
-        // setLoading(false);
-        // return;
-      }
-    } else {
-      console.log("Step", stepNumber, "- No quote ID needed (first step)");
+      // Optionally navigate back to step 1
+      // setQuizState(prev => ({ ...prev, currentQuestion: 0 }));
+      // setLoading(false);
+      // return;
+    } else if (stepNumber === 1 && !quoteIdFromStorage) {
+      console.log("Step", stepNumber, "- Creating new quote (no existing ID)");
+    } else if (stepNumber === 1 && quoteIdFromStorage) {
+      console.log(
+        "Step",
+        stepNumber,
+        "- Updating existing quote:",
+        quoteIdFromStorage
+      );
     }
 
     // Build the NewCreateQuoteRequest payload matching the exact structure
@@ -1254,11 +1263,20 @@ export function GetQuote() {
       step: stepNumber,
     };
 
-    // Add _id to payload for step 2 onwards
-    if (stepNumber >= 2 && quoteIdFromStorage) {
+    // Add _id to payload for step 2 onwards OR if we have a saved quote ID (resuming)
+    if (quoteIdFromStorage && stepNumber >= 2) {
       data._id = quoteIdFromStorage;
       console.log(
         "Adding _id to payload for step",
+        stepNumber,
+        ":",
+        quoteIdFromStorage
+      );
+    } else if (quoteIdFromStorage && stepNumber === 1) {
+      // If resuming from step 1 with an existing quote, include the _id to update instead of create
+      data._id = quoteIdFromStorage;
+      console.log(
+        "Resuming existing quote - Adding _id to payload for step",
         stepNumber,
         ":",
         quoteIdFromStorage
@@ -1272,9 +1290,12 @@ export function GetQuote() {
       console.log("Create Quote Response:", res);
       console.log("Create Quote Step:", stepNumber);
 
-      // If this is step 1, extract the quote ID from the response and save to localStorage
-      if (stepNumber === 1) {
-        console.log("Step 1 completed - extracting quote ID from response...");
+      // If this is step 1 and we don't already have a quote ID (new quote), save it
+      // If resuming, the quote ID should already be in localStorage
+      if (stepNumber === 1 && !quoteIdFromStorage) {
+        console.log(
+          "Step 1 completed (NEW quote) - extracting quote ID from response..."
+        );
 
         // Extract quote ID from the response (structure: { message: string, data: { _id: string, ... } })
         const quoteId = res?.data?._id;
@@ -1307,6 +1328,12 @@ export function GetQuote() {
               "Quote created but ID not found. Please check your dashboard.",
           });
         }
+      } else if (stepNumber === 1 && quoteIdFromStorage) {
+        console.log(
+          "Step 1 completed (RESUME) - using existing quote ID:",
+          quoteIdFromStorage
+        );
+        // Already have quote ID from resume, no need to extract from response
       }
 
       if (currentStep === undefined) {
@@ -1404,37 +1431,37 @@ export function GetQuote() {
       return;
     }
 
-    const data = {
-      address: getQuizAnswerValue("address") || "",
-      state: getQuizAnswerValue("state") || "",
-      lga: getQuizAnswerValue("lga") || "",
-      propertyType: getPropertyTypeFromQuiz(),
-      year:
-        Number(getQuizAnswerValue("buildingAge")) ||
-        new Date().getFullYear() - 5,
-      buildingMaterials: getBuildingMaterialsFromQuiz(),
-      occupancyStatus: getOccupancyStatusFromQuiz(),
-      paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
-      policy: "basic", // You can determine this from quiz if you have policy selection
-      propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
-      concerns: getSelectedConcerns(),
-      extraCoverage: {
-        lossOfRent:
-          (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
-          false,
-        contentInsurance:
-          (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
-          false,
-        publicLiability:
-          (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
-          false,
-        accidentalDamage:
-          (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
-          false,
-      },
-    };
+    // const data = {
+    //   address: getQuizAnswerValue("address") || "",
+    //   state: getQuizAnswerValue("state") || "",
+    //   lga: getQuizAnswerValue("lga") || "",
+    //   propertyType: getPropertyTypeFromQuiz(),
+    //   year:
+    //     Number(getQuizAnswerValue("buildingAge")) ||
+    //     new Date().getFullYear() - 5,
+    //   buildingMaterials: getBuildingMaterialsFromQuiz(),
+    //   occupancyStatus: getOccupancyStatusFromQuiz(),
+    //   paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
+    //   policy: "basic", // You can determine this from quiz if you have policy selection
+    //   propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
+    //   concerns: getSelectedConcerns(),
+    //   extraCoverage: {
+    //     lossOfRent:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
+    //       false,
+    //     contentInsurance:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
+    //       false,
+    //     publicLiability:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
+    //       false,
+    //     accidentalDamage:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
+    //       false,
+    //   },
+    // };
 
-    localStorage.setItem("quoteData", JSON.stringify(data));
+    // localStorage.setItem("quoteData", JSON.stringify(data));
     // setTimeout(() => {
     //   navigate("/payment-success");
     // }, 5000);
@@ -2333,7 +2360,17 @@ export function GetQuote() {
       const numValue = Number(answer.value);
       const validation = currentQuestion.validation;
 
-      if (validation?.min && numValue < validation.min) {
+      // Check if conversion to number was successful
+      if (isNaN(numValue)) {
+        addToast({
+          type: "error",
+          title: "Invalid Value",
+          message: "Please enter a valid number",
+        });
+        return false;
+      }
+
+      if (validation?.min !== undefined && numValue < validation.min) {
         addToast({
           type: "error",
           title: "Invalid Value",
@@ -2342,7 +2379,7 @@ export function GetQuote() {
         return false;
       }
 
-      if (validation?.max && numValue > validation.max) {
+      if (validation?.max !== undefined && numValue > validation.max) {
         addToast({
           type: "error",
           title: "Invalid Value",
@@ -2397,6 +2434,298 @@ export function GetQuote() {
   useEffect(() => {
     console.log("quiz.start", { timestamp: new Date().toISOString() });
   }, []);
+
+  // Handle resume from pending quote
+  useEffect(() => {
+    const resumeQuoteData = localStorage.getItem("resumeQuoteData");
+
+    if (resumeQuoteData) {
+      try {
+        const quoteData = JSON.parse(resumeQuoteData);
+        console.log("Resuming quote from:", quoteData);
+
+        // Map the quote data back to quiz answers
+        const resumedAnswers: Record<string, QuizAnswer> = {};
+
+        // Map all the fields from the quote data to quiz answers
+        if (quoteData.data) {
+          const data = quoteData.data;
+
+          // Step 1: Property Info
+          if (data.category) {
+            resumedAnswers.propertyType = {
+              questionId: "propertyType",
+              value: data.category.toLowerCase(),
+            };
+          }
+          if (data.otherPropertyType) {
+            resumedAnswers.propertyTypeOther = {
+              questionId: "propertyTypeOther",
+              value: data.otherPropertyType,
+            };
+          }
+          if (data.charges?.perPlot) {
+            // Clamp the value to valid range (1-10) to match form validation
+            const plotValue = Math.min(Math.max(data.charges.perPlot, 1), 10);
+            resumedAnswers.plots = {
+              questionId: "plots",
+              value: plotValue,
+            };
+            if (data.charges.perPlot > 10) {
+              console.warn(
+                `Plots value ${data.charges.perPlot} exceeds max (10), clamped to 10`
+              );
+            }
+          }
+          if (data.address) {
+            resumedAnswers.address = {
+              questionId: "address",
+              value: data.address,
+            };
+          }
+          // Extract state from address if needed
+          if (data.address && data.address.includes(",")) {
+            const addressParts = data.address.split(",");
+            if (addressParts.length > 1) {
+              resumedAnswers.state = {
+                questionId: "state",
+                value: addressParts[addressParts.length - 1].trim(),
+              };
+            }
+          }
+
+          // Step 2: Structure & Condition
+          if (data.wallMaterial) {
+            resumedAnswers.wallMaterial = {
+              questionId: "wallMaterial",
+              value: data.wallMaterial,
+            };
+          }
+          if (data.roofMaterial) {
+            resumedAnswers.roofType = {
+              questionId: "roofType",
+              value: data.roofMaterial,
+            };
+          }
+          if (data.buildingAge) {
+            resumedAnswers.buildingAge = {
+              questionId: "buildingAge",
+              value: data.buildingAge,
+            };
+          }
+          if (data.repairNeeded !== undefined) {
+            resumedAnswers.buildingCondition = {
+              questionId: "buildingCondition",
+              value: data.repairNeeded ? "poor" : "good",
+            };
+          }
+
+          // Step 3: Safety, Use & Risks
+          if (data.securitySafety?.occupied !== undefined) {
+            resumedAnswers.occupancy = {
+              questionId: "occupancy",
+              value: data.securitySafety.occupied ? "owner" : "vacant",
+            };
+          }
+          if (data.securitySafety) {
+            const security = data.securitySafety;
+            const securityFeatures: string[] = [];
+            if (security.estateGate) securityFeatures.push("gate");
+            if (security.cctv) securityFeatures.push("cctv");
+            if (security.securityGuards) securityFeatures.push("guards");
+            if (security.strongLocks) securityFeatures.push("locks");
+            if (security.noGlassPanels) securityFeatures.push("noGlass");
+            if (securityFeatures.length > 0) {
+              resumedAnswers.security = {
+                questionId: "security",
+                value: securityFeatures,
+              };
+            }
+          }
+          if (data.fireSafety) {
+            const fire = data.fireSafety;
+            const fireFeatures: string[] = [];
+            if (fire.fireExtinguisher) fireFeatures.push("extinguisher");
+            if (fire.smokeAlarm) fireFeatures.push("alarm");
+            if (fire.waterAccess) fireFeatures.push("water");
+            if (fireFeatures.length > 0) {
+              resumedAnswers.fireSafety = {
+                questionId: "fireSafety",
+                value: fireFeatures,
+              };
+            }
+          }
+          if (data.floodRisk) {
+            resumedAnswers.location = {
+              questionId: "location",
+              value: data.floodRisk,
+            };
+          }
+          if (
+            data.pastLoss !== undefined ||
+            data.unOccupiedForAwhile !== undefined
+          ) {
+            const riskFactors: string[] = [];
+            if (data.pastLoss) riskFactors.push("pastClaim");
+            if (data.unOccupiedForAwhile) riskFactors.push("vacant");
+            if (data.commercialUse) riskFactors.push("commercial");
+            resumedAnswers.risks = {
+              questionId: "risks",
+              value: riskFactors,
+            };
+          }
+          if (data.pastLoss && data.pastLossDetails) {
+            resumedAnswers.pastClaimDetails = {
+              questionId: "pastClaimDetails",
+              value: data.pastLossDetails,
+            };
+          }
+          if (data.unOccupiedDuration) {
+            resumedAnswers.vacantMonths = {
+              questionId: "vacantMonths",
+              value: data.unOccupiedDuration,
+            };
+          }
+
+          // Step 4: Extras & Value
+          if (data.extraCoverage) {
+            const riders: string[] = [];
+            if (data.extraCoverage.theft) riders.push("burglary");
+            if (data.extraCoverage.floodProtection) riders.push("flood");
+            if (data.extraCoverage.publicLiability) riders.push("liability");
+            if (data.extraCoverage.extendedFireCover) riders.push("fire");
+            if (riders.length > 0) {
+              resumedAnswers.riders = {
+                questionId: "riders",
+                value: riders,
+              };
+            }
+          }
+          if (data.propertyValue) {
+            resumedAnswers.declaredValue = {
+              questionId: "declaredValue",
+              value: data.propertyValue,
+            };
+          }
+          if (data.paymentFrequency) {
+            resumedAnswers.paymentFrequency = {
+              questionId: "paymentFrequency",
+              value: data.paymentFrequency.toLowerCase(),
+            };
+          }
+
+          // Determine which step to resume from
+          const savedStep = data.step || 1;
+
+          console.log("Resumed answers:", resumedAnswers);
+          console.log("Resuming from step:", savedStep);
+
+          // Calculate which question within the step to resume from
+          // We need to determine which questions in the current step have NOT been answered
+          const step1Questions = [
+            "propertyType",
+            "propertyTypeOther",
+            "floors",
+            "rooms",
+            "beds",
+            "blocks",
+            "pupilSeats",
+            "pumps",
+            "seats",
+            "plots",
+          ];
+          const step2Questions = [
+            "wallMaterial",
+            "wallMaterialOther",
+            "roofType",
+            "roofTypeOther",
+            "buildingAge",
+            "buildingCondition",
+          ];
+          const step3Questions = [
+            "occupancy",
+            "furnished",
+            "occupancyOther",
+            "businessUse",
+            "businessDetails",
+            "unoccupied",
+            "unoccupiedDuration",
+            "propertyLocation",
+            "pastLosses",
+            "lossDetails",
+            "nearbyRisks",
+            "nearbyRiskOther",
+            "security",
+            "fireSafety",
+          ];
+          const step4Questions = [
+            "payingGuests",
+            "guestCount",
+            "domesticStaff",
+            "previousDecline",
+            "declineDetails",
+            "currentInsurance",
+            "insuranceDetails",
+            "riders",
+            "declaredValue",
+            "paymentFrequency",
+          ];
+
+          let currentStepQuestionIds: string[] = [];
+          if (savedStep === 1) currentStepQuestionIds = step1Questions;
+          else if (savedStep === 2) currentStepQuestionIds = step2Questions;
+          else if (savedStep === 3) currentStepQuestionIds = step3Questions;
+          else if (savedStep === 4) currentStepQuestionIds = step4Questions;
+
+          // Find the first unanswered question in the current step
+          let resumeQuestionIndex = 0;
+          for (let i = 0; i < currentStepQuestionIds.length; i++) {
+            const questionId = currentStepQuestionIds[i];
+            if (!resumedAnswers[questionId]) {
+              resumeQuestionIndex = i;
+              break;
+            }
+            // If all questions are answered, start at the last question
+            if (i === currentStepQuestionIds.length - 1) {
+              resumeQuestionIndex = i;
+            }
+          }
+
+          console.log("Resume question index:", resumeQuestionIndex);
+
+          // Set the quiz state with resumed data
+          setQuizState({
+            answers: resumedAnswers,
+            currentQuestion: resumeQuestionIndex, // Resume at the first unanswered question
+            totalQuestions: 0, // Will be updated by the questions effect
+            currentStep: savedStep,
+            propertyCategory: data.category || "",
+            premiumBreakdown: null,
+          });
+
+          addToast({
+            type: "success",
+            title: "Welcome Back!",
+            message: `Resuming from Step ${savedStep}, Question ${
+              resumeQuestionIndex + 1
+            }. Your previous answers have been restored.`,
+          });
+        }
+
+        // Clear the resume data after loading (keep quoteId for updates)
+        localStorage.removeItem("resumeQuoteData");
+      } catch (error) {
+        console.error("Failed to parse resume quote data:", error);
+        localStorage.removeItem("resumeQuoteData");
+        addToast({
+          type: "error",
+          title: "Resume Failed",
+          message: "Could not restore your previous answers. Starting fresh.",
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
   if (!currentQuestion) {
     return (
@@ -2490,7 +2819,7 @@ export function GetQuote() {
             style={{ animationDelay: "400ms" }}
           >
             <div className="max-w-2xl mx-auto">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+              {/* <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
                 <span>Step Progress</span>
                 <span>{Math.round(getProgress())}% Complete</span>
               </div>
@@ -2499,10 +2828,10 @@ export function GetQuote() {
                   className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${getProgress()}%` }}
                 />
-              </div>
+              </div> */}
 
               {/* Step Indicators */}
-              <div className="flex justify-between mt-4">
+              {/* <div className="flex justify-between mt-4">
                 {[1, 2, 3, 4, 5].map((step) => {
                   const stepProgress = ((step - 1) / 4) * 100;
                   const isCompleted = getProgress() > stepProgress;
@@ -2539,7 +2868,7 @@ export function GetQuote() {
                     </div>
                   );
                 })}
-              </div>
+              </div> */}
             </div>
           </div>
 
