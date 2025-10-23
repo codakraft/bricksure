@@ -13,17 +13,40 @@ const IV_KEY = import.meta.env.VITE_IV_KEY || "default-iv-key-16";
 // Custom base query with auth token handling and error handling
 const baseQueryWithAuth = fetchBaseQuery({
   baseUrl: import.meta.env.VITE_API_URL || "https://bricksure-api.onrender.com",
-  prepareHeaders: (headers, { getState }) => {
+  prepareHeaders: (headers, { getState, endpoint }) => {
     const localToken = localStorage.getItem("bricksure-token");
+    console.log("Endpoint:", endpoint);
     const { token } = (getState() as RootState).auth;
-    console.log("Preparing headers with token:", token, localToken);
-    if (token) {
+    // console.log("Preparing headers with token:", token, localToken);
+    
+    // Skip auth token for getSeaLevel endpoint
+    if (endpoint !== "getSeaLevel" && token) {
       headers.set("authorization", `Bearer ${token || localToken}`);
     }
     headers.set("Content-Type", "application/json");
     return headers;
   },
 });
+
+// Dynamic base query that uses different base URLs based on endpoint
+const dynamicBaseQuery = async (args: any, api: any, extraOptions: any) => {
+  const { endpoint } = api;
+  
+  // Use different base URL for getSeaLevel endpoint
+  if (endpoint === 'getSeaLevel') {
+    const seaLevelBaseQuery = fetchBaseQuery({
+      baseUrl: 'https://location-risks-service.vercel.app',
+      prepareHeaders: (headers) => {
+        headers.set("Content-Type", "application/json");
+        return headers;
+      },
+    });
+    return seaLevelBaseQuery(args, api, extraOptions);
+  }
+  
+  // Use default base query for all other endpoints
+  return baseQueryWithAuth(args, api, extraOptions);
+};
 
 // Enhanced base query with encryption/decryption and error handling
 const baseQueryWithErrorHandling = async (
@@ -33,8 +56,11 @@ const baseQueryWithErrorHandling = async (
 ) => {
   let modifiedArgs = { ...args };
 
+  // Skip encryption for getSeaLevel endpoint
+  const shouldEncrypt = api.endpoint !== 'getSeaLevel';
+
   // Encrypt request body for POST and PUT requests
-  if (args.body && (args.method === "POST" || args.method === "PUT")) {
+  if (shouldEncrypt && args.body && (args.method === "POST" || args.method === "PUT")) {
     try {
       const bodyString =
         typeof args.body === "string" ? args.body : JSON.stringify(args.body);
@@ -53,7 +79,7 @@ const baseQueryWithErrorHandling = async (
     }
   }
 
-  const result = await baseQueryWithAuth(modifiedArgs, api, extraOptions);
+  const result = await dynamicBaseQuery(modifiedArgs, api, extraOptions);
 
   // Handle 401 errors
   if (result.error && result.error.status === 401) {
@@ -62,13 +88,16 @@ const baseQueryWithErrorHandling = async (
     return result;
   }
 
+  // Skip decryption for getSeaLevel endpoint
+  const shouldDecrypt = api.endpoint !== 'getSeaLevel';
+
   // Decrypt response data if present
   // console.log("Raw response data:", result.data.data, typeof result.data);
-  if (result.data && typeof result.data === "object") {
+  if (shouldDecrypt && result.data && typeof result.data === "object") {
     // console.log("Raw response data:", result.data, typeof result.data);
     try {
       const decryptedData = await encryptionService.decrypt(
-        result.data.data,
+        (result.data as any).data,
         ENCRYPTION_KEY,
         IV_KEY
       );

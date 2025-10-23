@@ -5,15 +5,15 @@ import { Card } from "../components/UI/Card";
 import { Button } from "../components/UI/Button";
 import { useSelector } from "react-redux";
 import { RootState } from "../store/store";
-import { useCreateQuoteMutation } from "../services";
 import { useToast } from "../components/UI/Toast";
 import { useState } from "react";
+import { useQuotePaymentMutation } from "../services/quotesService";
 
 export function PaymentSuccess() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const [createQuote] = useCreateQuoteMutation();
+  const [quotePayment] = useQuotePaymentMutation();
   const [loading, setLoading] = useState(false);
 
   const handleGoBack = () => {
@@ -24,17 +24,23 @@ export function PaymentSuccess() {
     // }
   };
 
-  const paymentData = JSON.parse(localStorage.getItem("quoteData") || "{}");
-  console.log("paymentData", paymentData);
+  // const paymentData = JSON.parse(localStorage.getItem("quoteData") || "{}");
   console.log("status", isAuthenticated);
+  const savedQuoteId = localStorage.getItem("currentQuoteId");
+  console.log("paymentData", savedQuoteId);
 
   const handleGetQuote = async () => {
-    console.log("Payment Data:", paymentData);
+    console.log("Payment Data:", savedQuoteId);
     setLoading(true);
     try {
-      const res = await createQuote(paymentData).unwrap();
-      console.log("Create Quote Response:", res);
-      if (res?.data?.property?._id) {
+      // const res = await createQuote(paymentData).unwrap();
+      // console.log("Create Quote Response:", res);
+      const paymentRes = await quotePayment({
+        quoteId: savedQuoteId as string,
+      }).unwrap();
+
+      console.log("Payment Response:", paymentRes);
+      if (paymentRes?.data) {
         addToast({
           type: "success",
           title: "Application Submitted Successfully!",
@@ -75,11 +81,11 @@ export function PaymentSuccess() {
 
           <Button
             className="w-full"
-            onClick={paymentData ? handleGetQuote : handleGoBack}
+            onClick={savedQuoteId ? handleGetQuote : handleGoBack}
             loading={loading}
           >
             {isAuthenticated
-              ? paymentData
+              ? savedQuoteId
                 ? "Continue with Quote"
                 : "Go to Wallet"
               : "Go to Login"}

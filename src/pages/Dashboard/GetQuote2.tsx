@@ -41,6 +41,7 @@ import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
 import { Button } from "../../components/UI/Button";
 import { Input } from "../../components/UI/Input";
+import { GooglePlacesInput } from "../../components/UI/GooglePlacesInput";
 import { useToast } from "../../components/UI/Toast";
 import {
   useGetPropertyTypeQuery,
@@ -54,6 +55,11 @@ import {
 } from "../../services/walletService";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
+import {
+  useGetChargesQuery,
+  useGetSeaLevelMutation,
+  useQuotePaymentMutation,
+} from "../../services/quotesService";
 
 interface QuizAnswer {
   questionId: string;
@@ -65,6 +71,7 @@ interface QuizState {
   answers: Record<string, QuizAnswer>;
   currentQuestion: number;
   totalQuestions: number;
+  currentStep: number; // Track which of the 4 steps (1-4), step 5 is payment
   propertyCategory: string;
   premiumBreakdown: PremiumBreakdown | null;
 }
@@ -119,53 +126,6 @@ interface Question {
   microCopy?: string;
 }
 
-// Premium Table Configuration
-const PREMIUM_TABLE = {
-  version: "pt_v1",
-  categories: {
-    SINGLE_OCC_OFFICE: {
-      label: "Single Occupier – Office Building",
-      charges: { perFloor: 10000, perPlot: 5000 },
-    },
-    SINGLE_OCC_RESIDENTIAL: {
-      label: "Single Occupier – Residential Building",
-      charges: { perFloor: 5000, perPlot: 5000 },
-    },
-    HOTEL_HOSTEL_GUEST: {
-      label: "Hotel/Hostel/Guest House",
-      charges: { perRoom: 1500, perBed: 500 },
-    },
-    RECREATION_CINEMA: {
-      label: "Recreation Centre/Cinema Halls",
-      charges: { perFloor: 15000, perCinemaSeat: 200 },
-    },
-    SCHOOLS_TRAINING: {
-      label: "Schools & Training Institutions",
-      charges: { perBlock: 5000, perPupilSeat: 100 },
-    },
-    PETROL_GAS_STATION: {
-      label: "Petrol/Gas Station",
-      charges: { perPump: 10000 },
-    },
-    HOSPITAL_CLINIC: {
-      label: "Hospital/Health Centre & Clinics",
-      charges: { perFloor: 12000, perPlot: 6000 },
-    },
-    MULTI_OCC_BUSINESS: {
-      label: "Multi-Occupier – Multi-Purpose Business Building",
-      charges: { perApartmentOfficeWing: 10000 },
-    },
-    MULTI_OCC_MIXED_RES: {
-      label: "Multi-Occupier – Mixed-use Residential Building",
-      charges: { perApartmentOfficeWing: 7500 },
-    },
-    OTHERS: {
-      label: "Others",
-      charges: { perFloor: 5000, perPlot: 5000 },
-    },
-  },
-};
-
 export function GetQuote() {
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -177,11 +137,19 @@ export function GetQuote() {
   const [fundWallet] = useFundWalletMutation();
   const { data: walletData } = useGetWalletQuery();
   const { authData: user } = useSelector((state: RootState) => state.auth);
+  const { data: chargesData } = useGetChargesQuery();
+  const [getSeaLevel, { data: seaLevelData, isLoading: isLoadingSeaLevel }] =
+    useGetSeaLevelMutation();
+  const [quotePayment] = useQuotePaymentMutation();
+
+  console.log("Charges Data:", chargesData);
+  console.log("Sea Level Data:", seaLevelData);
 
   const [quizState, setQuizState] = useState<QuizState>({
     answers: {},
     currentQuestion: 0,
     totalQuestions: 0,
+    currentStep: 1, // Start at step 1 (of 4 steps, step 5 is payment)
     propertyCategory: "",
     premiumBreakdown: null,
   });
@@ -207,6 +175,7 @@ export function GetQuote() {
   const [lastCalculationTime, setLastCalculationTime] = useState(0);
 
   // Helper functions to extract quiz answers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getQuizAnswerValue = (questionId: string): any => {
     return quizState.answers[questionId]?.value || null;
   };
@@ -494,60 +463,85 @@ export function GetQuote() {
     });
 
     // Step 2: Structure & Condition
+    questions.push({
+      id: "wallMaterial",
+      text: "What are the outside walls made of?",
+      emoji: "🧱",
+      type: "single",
+      options: [
+        { value: "brick", label: "Brick/Concrete", icon: Building },
+        { value: "wood", label: "Wood", icon: Home },
+        { value: "mud", label: "Mud/Clay", icon: Home },
+        { value: "mixed", label: "Mixed Materials", icon: Building },
+        {
+          value: "other",
+          label: "Other (specify)",
+          icon: HelpCircle,
+          followUp: ["wallMaterialOther"],
+        },
+      ],
+      microCopy: "This affects your property's risk rating",
+    });
+
+    // Add wall material follow-up immediately if "other" is selected
+    if (answers.wallMaterial?.value === "other") {
+      questions.push({
+        id: "wallMaterialOther",
+        text: "Please specify the wall material",
+        emoji: "✏️",
+        type: "text",
+        validation: { required: true },
+        microCopy: "We'll review this for accurate pricing",
+      });
+    }
+
+    questions.push({
+      id: "roofType",
+      text: "What type of roof does it have?",
+      emoji: "🏠",
+      type: "single",
+      options: [
+        {
+          value: "metal",
+          label: "Corrugated Iron/Aluminium Sheets",
+          icon: Home,
+        },
+        { value: "longspan", label: "Longspan Metal", icon: Building },
+        { value: "tiles", label: "Stone-Coated Tiles", icon: Building2 },
+        { value: "concrete", label: "Concrete Slabs", icon: Building },
+        { value: "thatch", label: "Thatch", icon: Home },
+        { value: "asbestos", label: "Asbestos Sheets", icon: Building },
+        {
+          value: "other",
+          label: "Other (specify)",
+          icon: HelpCircle,
+          followUp: ["roofTypeOther"],
+        },
+      ],
+    });
+
+    // Add roof type follow-up immediately if "other" is selected
+    if (answers.roofType?.value === "other") {
+      questions.push({
+        id: "roofTypeOther",
+        text: "Please specify the roof type",
+        emoji: "✏️",
+        type: "text",
+        validation: { required: true },
+      });
+    }
+
     questions.push(
-      {
-        id: "wallMaterial",
-        text: "What are the outside walls made of?",
-        emoji: "🧱",
-        type: "single",
-        options: [
-          { value: "brick", label: "Brick/Concrete", icon: Building },
-          { value: "wood", label: "Wood", icon: Home },
-          { value: "mud", label: "Mud/Clay", icon: Home },
-          { value: "mixed", label: "Mixed Materials", icon: Building },
-          {
-            value: "other",
-            label: "Other (specify)",
-            icon: HelpCircle,
-            followUp: ["wallMaterialOther"],
-          },
-        ],
-        microCopy: "This affects your property's risk rating",
-      },
-      {
-        id: "roofType",
-        text: "What type of roof does it have?",
-        emoji: "🏠",
-        type: "single",
-        options: [
-          {
-            value: "metal",
-            label: "Corrugated Iron/Aluminium Sheets",
-            icon: Home,
-          },
-          { value: "longspan", label: "Longspan Metal", icon: Building },
-          { value: "tiles", label: "Stone-Coated Tiles", icon: Building2 },
-          { value: "concrete", label: "Concrete Slabs", icon: Building },
-          { value: "thatch", label: "Thatch", icon: Home },
-          { value: "asbestos", label: "Asbestos Sheets", icon: Building },
-          {
-            value: "other",
-            label: "Other (specify)",
-            icon: HelpCircle,
-            followUp: ["roofTypeOther"],
-          },
-        ],
-      },
       {
         id: "buildingAge",
         text: "How old is the building?",
         emoji: "📅",
         type: "single",
         options: [
-          { value: "new", label: "Less than 5 years", icon: Sparkles },
-          { value: "recent", label: "5-10 years", icon: Calendar },
-          { value: "mature", label: "10-20 years", icon: Calendar },
-          { value: "old", label: "Over 20 years", icon: Calendar },
+          { value: "0-5", label: "Less than 5 years", icon: Sparkles },
+          { value: "5-10", label: "5-10 years", icon: Calendar },
+          { value: "10-20", label: "10-20 years", icon: Calendar },
+          { value: "20+", label: "Over 20 years", icon: Calendar },
         ],
       },
       {
@@ -565,28 +559,6 @@ export function GetQuote() {
         ],
       }
     );
-
-    // Add follow-up questions for "other" materials
-    if (answers.wallMaterial?.value === "other") {
-      questions.push({
-        id: "wallMaterialOther",
-        text: "Please specify the wall material",
-        emoji: "✏️",
-        type: "text",
-        validation: { required: true },
-        microCopy: "We'll review this for accurate pricing",
-      });
-    }
-
-    if (answers.roofType?.value === "other") {
-      questions.push({
-        id: "roofTypeOther",
-        text: "Please specify the roof type",
-        emoji: "✏️",
-        type: "text",
-        validation: { required: true },
-      });
-    }
 
     // Step 3: Occupancy & Use
     questions.push({
@@ -712,47 +684,13 @@ export function GetQuote() {
 
     // Step 4: Risks & Safety
     questions.push({
-      id: "waterProximity",
-      text: "Is it low-lying or close to water?",
-      emoji: "🌊",
-      type: "single",
-      options: [
-        {
-          value: "sea",
-          label: "Near Sea/Ocean",
-          icon: Droplets,
-          followUp: ["waterDistance"],
-        },
-        {
-          value: "river",
-          label: "Near River/Stream",
-          icon: Droplets,
-          followUp: ["waterDistance"],
-        },
-        {
-          value: "reservoir",
-          label: "Near Reservoir/Dam",
-          icon: Droplets,
-          followUp: ["waterDistance"],
-        },
-        { value: "none", label: "Not near water", icon: CheckCircle },
-      ],
+      id: "propertyLocation",
+      text: "Enter Property Location",
+      emoji: "📍",
+      type: "text",
+      validation: { required: true },
+      microCopy: "Provide the full address or location of your property",
     });
-
-    if (
-      ["sea", "river", "reservoir"].includes(
-        answers.waterProximity?.value as string
-      )
-    ) {
-      questions.push({
-        id: "waterDistance",
-        text: "Distance from water and height above normal level?",
-        emoji: "📏",
-        type: "text",
-        validation: { required: true },
-        microCopy: "e.g., '500m away, 10m above sea level'",
-      });
-    }
 
     questions.push({
       id: "pastLosses",
@@ -947,7 +885,7 @@ export function GetQuote() {
         id: "declaredValue",
         text: "What's the declared value of the property?",
         emoji: "💰",
-        type: "number",
+        type: "text",
         validation: { min: 1000000, required: true },
         microCopy: "Current market value in Nigerian Naira",
       },
@@ -969,61 +907,497 @@ export function GetQuote() {
     return questions.filter((q) => !q.showIf || q.showIf(answers));
   };
 
-  const handleCheckout = async () => {
+  // Organize questions into 4 steps
+  const getQuestionsForStep = (step: number): Question[] => {
+    const allQuestions = generateQuestions();
+
+    // Define step boundaries based on question themes
+    // Step 1: Property Type & Basic Info (property type, follow-ups, plots)
+    // Step 2: Structure & Condition (walls, roof, age, condition)
+    // Step 3: Occupancy, Use & Safety (occupancy, business use, unoccupied, location, risks, security, fire safety)
+    // Step 4: Additional Info & Extras (paying guests, staff, insurance history, riders, value, payment frequency)
+
+    const step1Questions = [
+      "propertyType",
+      "propertyTypeOther",
+      "floors",
+      "rooms",
+      "beds",
+      "blocks",
+      "pupilSeats",
+      "pumps",
+      "seats",
+      "plots",
+    ];
+
+    const step2Questions = [
+      "wallMaterial",
+      "wallMaterialOther",
+      "roofType",
+      "roofTypeOther",
+      "buildingAge",
+      "buildingCondition",
+    ];
+
+    const step3Questions = [
+      "occupancy",
+      "furnished",
+      "occupancyOther",
+      "businessUse",
+      "businessDetails",
+      "unoccupied",
+      "unoccupiedDuration",
+      "propertyLocation",
+      "pastLosses",
+      "lossDetails",
+      "nearbyRisks",
+      "nearbyRiskOther",
+      "security",
+      "fireSafety",
+    ];
+
+    const step4Questions = [
+      "payingGuests",
+      "guestCount",
+      "domesticStaff",
+      "previousDecline",
+      "declineDetails",
+      "currentInsurance",
+      "insuranceDetails",
+      "riders",
+      "declaredValue",
+      "paymentFrequency",
+    ];
+
+    let questionIds: string[] = [];
+    if (step === 1) questionIds = step1Questions;
+    else if (step === 2) questionIds = step2Questions;
+    else if (step === 3) questionIds = step3Questions;
+    else if (step === 4) questionIds = step4Questions;
+
+    // Filter questions to only include those for this step
+    return allQuestions.filter((q) => questionIds.includes(q.id));
+  };
+
+  // Get current step's questions
+  const currentStepQuestions = getQuestionsForStep(quizState.currentStep);
+  const currentQuestion = currentStepQuestions[quizState.currentQuestion];
+
+  const handleCheckout = async (currentStep?: number) => {
     setLoading(true);
 
-    // Extract data from quiz answers
-    const data = {
-      address: getQuizAnswerValue("address") || "",
-      state: getQuizAnswerValue("state") || "",
-      lga: getQuizAnswerValue("lga") || "",
-      propertyType: getPropertyTypeFromQuiz(),
-      year:
-        Number(getQuizAnswerValue("buildingAge")) ||
-        new Date().getFullYear() - 5,
-      buildingMaterials: getBuildingMaterialsFromQuiz(),
-      occupancyStatus: getOccupancyStatusFromQuiz(),
-      paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
-      policy: "basic", // You can determine this from quiz if you have policy selection
-      propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
-      concerns: getSelectedConcerns(),
-      extraCoverage: {
-        lossOfRent:
-          (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
-          false,
-        contentInsurance:
-          (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
-          false,
-        publicLiability:
-          (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
-          false,
-        accidentalDamage:
-          (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
-          false,
+    const answers = quizState.answers;
+    const riders = (answers.riders?.value as string[]) || [];
+    const security = (answers.security?.value as string[]) || [];
+    const fireSafety = (answers.fireSafety?.value as string[]) || [];
+
+    // Determine flood risk from sea level data
+    let floodRisk = false;
+    if (seaLevelData) {
+      const parseDistanceFromText = (
+        text: string
+      ): { elevation: number | null; waterDistance: number | null } => {
+        let elevation: number | null = null;
+        let waterDistance: number | null = null;
+
+        const elevationMatch = text.match(
+          /(?:distance to sea level|elevation)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+        );
+        if (elevationMatch) {
+          elevation = parseFloat(elevationMatch[1]);
+        }
+
+        const waterMatch = text.match(
+          /(?:distance to water)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+        );
+        if (waterMatch) {
+          waterDistance = parseFloat(waterMatch[1]);
+        }
+
+        return { elevation, waterDistance };
+      };
+
+      let elevationM = seaLevelData.elevation_meters;
+      let distanceToWaterM: number | null = null;
+
+      if (
+        (!elevationM || elevationM === 0) &&
+        seaLevelData.sea_level_assessment
+      ) {
+        const parsed = parseDistanceFromText(seaLevelData.sea_level_assessment);
+        if (parsed.elevation !== null) {
+          elevationM = parsed.elevation;
+        }
+        distanceToWaterM = parsed.waterDistance;
+      }
+
+      // Consider it high flood risk if elevation < 20m or distance to water < 500m
+      if (
+        (elevationM !== undefined && elevationM !== null && elevationM < 20) ||
+        (distanceToWaterM !== null && distanceToWaterM < 500)
+      ) {
+        floodRisk = true;
+      }
+    }
+
+    // Calculate property age from building age
+    const buildingAgeValue = answers.buildingAge?.value as string;
+    let propertyAge = 0;
+    if (buildingAgeValue === "0-5") propertyAge = 2;
+    else if (buildingAgeValue === "5-10") propertyAge = 7;
+    else if (buildingAgeValue === "10-20") propertyAge = 15;
+    else if (buildingAgeValue === "20+") propertyAge = 25;
+
+    // Map quiz property type to API property type key
+    const propertyType = answers.propertyType?.value as string;
+    const occupancy = answers.occupancy?.value as string;
+
+    let apiPropertyTypeKey = "others";
+    if (propertyType === "bungalow") {
+      apiPropertyTypeKey = "bungalow";
+    } else if (propertyType === "duplex") {
+      apiPropertyTypeKey = "duplex";
+    } else if (propertyType === "storey") {
+      apiPropertyTypeKey = "storeyBuilding";
+    } else if (propertyType === "flats") {
+      apiPropertyTypeKey = "flats";
+    } else if (propertyType === "office" || occupancy === "office") {
+      apiPropertyTypeKey = "singleOccOffice";
+    } else if (
+      ["bungalow", "duplex", "flats"].includes(propertyType) &&
+      occupancy === "owner"
+    ) {
+      apiPropertyTypeKey = "singleOccResidential";
+    } else if (propertyType === "hostel") {
+      apiPropertyTypeKey = "hotelHostelGuest";
+    } else if (propertyType === "recreation") {
+      apiPropertyTypeKey = "recreationCinema";
+    } else if (propertyType === "school") {
+      apiPropertyTypeKey = "school";
+    } else if (propertyType === "petrol") {
+      apiPropertyTypeKey = "petrolGasStation";
+    } else if (propertyType === "hospital") {
+      apiPropertyTypeKey = "hospitalClinic";
+    } else if (
+      propertyType === "mixed" &&
+      ["business", "commercial"].includes(occupancy)
+    ) {
+      apiPropertyTypeKey = "multiOccBusiness";
+    } else if (propertyType === "mixed") {
+      apiPropertyTypeKey = "multiOccMixedRes";
+    }
+
+    // Build charges object based on available answers
+    const charges: {
+      perPlot?: number;
+      perFloor?: number;
+      perBlock?: number;
+      perPupilSeat?: number;
+      perRoom?: number;
+      perBed?: number;
+      perPump?: number;
+      perCinemaSeat?: number;
+      perApartmentOfficeWing?: number;
+    } = {};
+
+    if (answers.plots?.value) {
+      charges.perPlot = Number(answers.plots.value);
+    }
+    if (answers.floors?.value) {
+      charges.perFloor = Number(answers.floors.value);
+    }
+    if (answers.blocks?.value) {
+      charges.perBlock = Number(answers.blocks.value);
+    }
+    if (answers.pupilSeats?.value) {
+      charges.perPupilSeat = Number(answers.pupilSeats.value);
+    }
+    if (answers.rooms?.value) {
+      charges.perRoom = Number(answers.rooms.value);
+    }
+    if (answers.beds?.value) {
+      charges.perBed = Number(answers.beds.value);
+    }
+    if (answers.pumps?.value) {
+      charges.perPump = Number(answers.pumps.value);
+    }
+    if (answers.seats?.value) {
+      charges.perCinemaSeat = Number(answers.seats.value);
+    }
+    if (answers.apartments?.value) {
+      charges.perApartmentOfficeWing = Number(answers.apartments.value);
+    }
+
+    // Determine the current step number
+    const stepNumber =
+      currentStep !== undefined ? currentStep : quizState.currentQuestion + 1;
+
+    // Get quote ID from localStorage - check for ALL steps (needed for resume functionality)
+    const quoteIdFromStorage: string | null =
+      localStorage.getItem("currentQuoteId");
+
+    if (quoteIdFromStorage) {
+      console.log(
+        "Step",
+        stepNumber,
+        "- Retrieved Quote ID from localStorage:",
+        quoteIdFromStorage
+      );
+    }
+
+    // For step 2 onwards, quote ID is REQUIRED (unless resuming from step 1)
+    if (stepNumber >= 2 && !quoteIdFromStorage) {
+      console.error(
+        "CRITICAL: No quote ID found in localStorage for step",
+        stepNumber
+      );
+      console.log("localStorage contents:", {
+        currentQuoteId: localStorage.getItem("currentQuoteId"),
+        allKeys: Object.keys(localStorage),
+      });
+
+      addToast({
+        type: "error",
+        title: "Quote Session Lost",
+        message: "Please restart the quote process from step 1",
+      });
+
+      // Optionally navigate back to step 1
+      // setQuizState(prev => ({ ...prev, currentQuestion: 0 }));
+      // setLoading(false);
+      // return;
+    } else if (stepNumber === 1 && !quoteIdFromStorage) {
+      console.log("Step", stepNumber, "- Creating new quote (no existing ID)");
+    } else if (stepNumber === 1 && quoteIdFromStorage) {
+      console.log(
+        "Step",
+        stepNumber,
+        "- Updating existing quote:",
+        quoteIdFromStorage
+      );
+    }
+
+    // Build the NewCreateQuoteRequest payload matching the exact structure
+    const data: {
+      propertyTypeCharges: {
+        [key: string]: { charges: { [key: string]: number } };
+      };
+      address: string;
+      paymentFrequency: string;
+      propertyValue: number;
+      riskAdjustments: {
+        wallMaterial: string;
+        buildingAge: string;
+        pastLoss: boolean;
+        unOccupiedForAwhile: boolean;
+        unOccupiedDuration: number;
+        floodRisk: boolean;
+      };
+      safetySecurityDiscounts: {
+        securitySafety: {
+          estateGate: boolean;
+          cctv: boolean;
+          securityGuards: boolean;
+          strongLocks: boolean;
+          noGlassPanels: boolean;
+          occupied: boolean;
+        };
+        fireSafety: {
+          fireExtinguisher: boolean;
+          smokeAlarm: boolean;
+          waterAccess: boolean;
+        };
+      };
+      extraCoverageFees: {
+        theft: boolean;
+        floodProtection: boolean;
+        publicLiability: boolean;
+        extendedFireCover: boolean;
+        burglaryCover: boolean;
+      };
+      duration: number;
+      propertyAge: number;
+      step: number;
+      _id?: string;
+    } = {
+      propertyTypeCharges: {
+        [apiPropertyTypeKey]: {
+          charges: charges,
+        },
       },
+      address: (answers.propertyLocation?.value as string) || "",
+      paymentFrequency: (answers.paymentFrequency?.value as string) || "annual",
+      propertyValue: Number(answers.declaredValue?.value) || 0,
+      riskAdjustments: {
+        wallMaterial: (answers.wallMaterial?.value as string) || "",
+        buildingAge: buildingAgeValue || "",
+        pastLoss: answers.pastLosses?.value === "yes",
+        unOccupiedForAwhile: answers.unoccupied?.value === "yes",
+        unOccupiedDuration: Number(answers.unoccupiedDuration?.value) || 0,
+        floodRisk: floodRisk,
+      },
+      safetySecurityDiscounts: {
+        securitySafety: {
+          estateGate: security.includes("gate"),
+          cctv: security.includes("cctv"),
+          securityGuards: security.includes("guards"),
+          strongLocks: security.includes("locks"),
+          noGlassPanels: security.includes("noglass"),
+          occupied: security.includes("occupied"),
+        },
+        fireSafety: {
+          fireExtinguisher: fireSafety.includes("extinguisher"),
+          smokeAlarm: fireSafety.includes("alarm"),
+          waterAccess: fireSafety.includes("hydrant"),
+        },
+      },
+      extraCoverageFees: {
+        theft: riders.includes("materials"),
+        floodProtection: riders.includes("flood"),
+        publicLiability: riders.includes("liability"),
+        extendedFireCover: riders.includes("fire"),
+        burglaryCover: riders.includes("burglary"),
+      },
+      duration: 12, // Default annual duration
+      propertyAge: propertyAge,
+      step: stepNumber,
     };
-    console.log("Checkout Data:", data);
+
+    // Add _id to payload for step 2 onwards OR if we have a saved quote ID (resuming)
+    if (quoteIdFromStorage && stepNumber >= 2) {
+      data._id = quoteIdFromStorage;
+      console.log(
+        "Adding _id to payload for step",
+        stepNumber,
+        ":",
+        quoteIdFromStorage
+      );
+    } else if (quoteIdFromStorage && stepNumber === 1) {
+      // If resuming from step 1 with an existing quote, include the _id to update instead of create
+      data._id = quoteIdFromStorage;
+      console.log(
+        "Resuming existing quote - Adding _id to payload for step",
+        stepNumber,
+        ":",
+        quoteIdFromStorage
+      );
+    }
+
+    console.log("Checkout Data (Step " + data.step + "):", data);
+
     try {
       const res = await createQuote(data).unwrap();
       console.log("Create Quote Response:", res);
-      if (res?.data?.property?._id) {
-        addToast({
-          type: "success",
-          title: "Application Submitted Successfully!",
-          message:
-            "Your policy application has been submitted and payment processed. You will be notified of the approval status.",
-        });
-        // Navigate to dashboard with success state
-        navigate("/dashboard?success=quote-submitted");
+      console.log("Create Quote Step:", stepNumber);
+
+      // If this is step 1 and we don't already have a quote ID (new quote), save it
+      // If resuming, the quote ID should already be in localStorage
+      if (stepNumber === 1 && !quoteIdFromStorage) {
+        console.log(
+          "Step 1 completed (NEW quote) - extracting quote ID from response..."
+        );
+
+        // Extract quote ID from the response (structure: { message: string, data: { _id: string, ... } })
+        const quoteId = res?.data?._id;
+
+        if (quoteId) {
+          // Save to localStorage for subsequent steps
+          localStorage.setItem("currentQuoteId", quoteId);
+          console.log(
+            "✅ Successfully saved Quote ID to localStorage:",
+            quoteId
+          );
+
+          // Verify it was saved
+          const verification = localStorage.getItem("currentQuoteId");
+          console.log("Verification - localStorage contains:", verification);
+        } else {
+          console.error(
+            "❌ Could not extract quote ID from response. Response structure:",
+            {
+              hasData: !!res?.data,
+              dataKeys: res?.data ? Object.keys(res.data) : [],
+              fullResponse: res,
+            }
+          );
+
+          addToast({
+            type: "error",
+            title: "Quote Creation Issue",
+            message:
+              "Quote created but ID not found. Please check your dashboard.",
+          });
+        }
+      } else if (stepNumber === 1 && quoteIdFromStorage) {
+        console.log(
+          "Step 1 completed (RESUME) - using existing quote ID:",
+          quoteIdFromStorage
+        );
+        // Already have quote ID from resume, no need to extract from response
       }
 
-      // await new Promise((resolve) => setTimeout(resolve, 3000));
-    } catch {
-      addToast({
-        type: "error",
-        title: "Submission Failed",
-        message: "Please try again or contact support",
-      });
+      if (currentStep === undefined) {
+        // Final submission - Process payment with the saved quote ID
+        console.log("Final submission - processing payment...");
+
+        // Get the quote ID from localStorage
+        const savedQuoteId = localStorage.getItem("currentQuoteId");
+
+        if (savedQuoteId) {
+          console.log("Using saved Quote ID for payment:", savedQuoteId);
+
+          // Call quotePayment with the quote ID
+          try {
+            const paymentRes = await quotePayment({
+              quoteId: savedQuoteId,
+            }).unwrap();
+            console.log("Payment Response:", paymentRes);
+
+            // Clear the quote ID from localStorage after successful payment
+            localStorage.removeItem("currentQuoteId");
+
+            addToast({
+              type: "success",
+              title: "Application Submitted Successfully!",
+              message:
+                "Your policy application has been submitted and payment processed. You will be notified of the approval status.",
+            });
+            // Navigate to dashboard with success state
+            navigate("/dashboard?success=quote-submitted");
+          } catch (paymentErr) {
+            console.error("Payment error:", paymentErr);
+            addToast({
+              type: "error",
+              title: "Payment Failed",
+              message:
+                "Quote created but payment failed. Please try again from your dashboard.",
+            });
+            navigate("/dashboard");
+          }
+        } else {
+          console.error("No quote ID found in localStorage for payment");
+          addToast({
+            type: "error",
+            title: "Quote Not Found",
+            message:
+              "Could not find the quote for payment. Please check your dashboard.",
+          });
+          navigate("/dashboard");
+        }
+      } else {
+        // Step-by-step submission successful
+        console.log("Step " + data.step + " saved successfully");
+      }
+    } catch (err) {
+      console.error("Checkout error:", err);
+      if (currentStep === undefined) {
+        // Only show error toast for final submission
+        addToast({
+          type: "error",
+          title: "Submission Failed",
+          message: "Please try again or contact support",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -1039,53 +1413,55 @@ export function GetQuote() {
       return;
     }
 
-    // Get total price from current quiz
-    const totalPrice = quizState.premiumBreakdown?.total || 0;
-    const currentWalletBalance = 0; // We'll get this from API if needed
+    const neededAmount = Math.max(
+      0,
+      (quizState.premiumBreakdown?.total || 0) -
+        (walletData?.data?.wallet?.balance || 0)
+    );
 
     // Validate that fund amount covers the required balance
-    if (totalPrice - currentWalletBalance > parseFloat(fundAmount)) {
+    if (neededAmount > parseFloat(fundAmount)) {
       addToast({
         type: "error",
         title: "Insufficient Amount",
         message: `Please enter at least ${formatCurrency(
-          totalPrice - currentWalletBalance
+          neededAmount
         )} to cover the quote`,
       });
       return;
     }
 
-    const data = {
-      address: getQuizAnswerValue("address") || "",
-      state: getQuizAnswerValue("state") || "",
-      lga: getQuizAnswerValue("lga") || "",
-      propertyType: getPropertyTypeFromQuiz(),
-      year:
-        Number(getQuizAnswerValue("buildingAge")) ||
-        new Date().getFullYear() - 5,
-      buildingMaterials: getBuildingMaterialsFromQuiz(),
-      occupancyStatus: getOccupancyStatusFromQuiz(),
-      paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
-      policy: "basic", // You can determine this from quiz if you have policy selection
-      propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
-      concerns: getSelectedConcerns(),
-      extraCoverage: {
-        lossOfRent:
-          (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
-          false,
-        contentInsurance:
-          (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
-          false,
-        publicLiability:
-          (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
-          false,
-        accidentalDamage:
-          (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
-          false,
-      },
-    };
+    // const data = {
+    //   address: getQuizAnswerValue("address") || "",
+    //   state: getQuizAnswerValue("state") || "",
+    //   lga: getQuizAnswerValue("lga") || "",
+    //   propertyType: getPropertyTypeFromQuiz(),
+    //   year:
+    //     Number(getQuizAnswerValue("buildingAge")) ||
+    //     new Date().getFullYear() - 5,
+    //   buildingMaterials: getBuildingMaterialsFromQuiz(),
+    //   occupancyStatus: getOccupancyStatusFromQuiz(),
+    //   paymentFrequency: getQuizAnswerValue("paymentFrequency") || "annual",
+    //   policy: "basic", // You can determine this from quiz if you have policy selection
+    //   propertyValue: String(Number(getQuizAnswerValue("declaredValue")) || 0),
+    //   concerns: getSelectedConcerns(),
+    //   extraCoverage: {
+    //     lossOfRent:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("lossOfRent") ||
+    //       false,
+    //     contentInsurance:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("contents") ||
+    //       false,
+    //     publicLiability:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("liability") ||
+    //       false,
+    //     accidentalDamage:
+    //       (getQuizAnswerValue("riders") as string[])?.includes("accidental") ||
+    //       false,
+    //   },
+    // };
 
-    localStorage.setItem("quoteData", JSON.stringify(data));
+    // localStorage.setItem("quoteData", JSON.stringify(data));
     // setTimeout(() => {
     //   navigate("/payment-success");
     // }, 5000);
@@ -1128,11 +1504,51 @@ export function GetQuote() {
     const currentWalletBalance = walletData?.data?.wallet?.balance || 0;
 
     if (currentWalletBalance >= totalPrice) {
-      // Wallet has sufficient funds, proceed with checkout
+      // Wallet has sufficient funds, proceed with payment
       setLoading(true);
+
+      // Set current step to 5 (payment step)
+      setQuizState((prev) => ({ ...prev, currentStep: 5 }));
+
       try {
-        await handleCheckout();
-      } catch (error) {
+        // Get the saved quote ID from localStorage
+        const savedQuoteId = localStorage.getItem("currentQuoteId");
+
+        if (!savedQuoteId) {
+          console.error("No quote ID found in localStorage for payment");
+          addToast({
+            type: "error",
+            title: "Quote Not Found",
+            message:
+              "Could not find the quote for payment. Please check your dashboard.",
+          });
+          navigate("/dashboard");
+          return;
+        }
+
+        console.log("Step 5 (Payment) - Using saved Quote ID:", savedQuoteId);
+
+        // Call quotePayment with the quote ID
+        const paymentRes = await quotePayment({
+          quoteId: savedQuoteId,
+        }).unwrap();
+
+        console.log("Payment Response:", paymentRes);
+
+        // Clear the quote ID from localStorage after successful payment
+        localStorage.removeItem("currentQuoteId");
+
+        addToast({
+          type: "success",
+          title: "Payment Successful!",
+          message:
+            "Your policy application has been submitted and payment processed. You will be notified of the approval status.",
+        });
+
+        // Navigate to dashboard with success state
+        navigate("/dashboard?success=quote-submitted");
+      } catch (paymentErr) {
+        console.error("Payment error:", paymentErr);
         addToast({
           type: "error",
           title: "Payment Failed",
@@ -1148,13 +1564,11 @@ export function GetQuote() {
     }
   };
 
-  const questions = generateQuestions();
-  const currentQuestion = questions[quizState.currentQuestion];
-
   // Update total questions when questions change
   useEffect(() => {
-    setQuizState((prev) => ({ ...prev, totalQuestions: questions.length }));
-  }, [questions.length]);
+    const totalQuestionsInStep = currentStepQuestions.length;
+    setQuizState((prev) => ({ ...prev, totalQuestions: totalQuestionsInStep }));
+  }, [currentStepQuestions.length]);
 
   // Determine property category for premium calculation
   const determinePropertyCategory = (
@@ -1213,192 +1627,549 @@ export function GetQuote() {
 
       const answers = quizState.answers;
       const category = determinePropertyCategory(answers);
-      const categoryConfig =
-        PREMIUM_TABLE.categories[
-          category as keyof typeof PREMIUM_TABLE.categories
-        ];
 
-      // Calculate premium table base
+      // Get category configuration from chargesData
+      if (!chargesData?.data) {
+        throw new Error("Charges data not available");
+      }
+
+      const propertyTypeCharges = chargesData.data.propertyTypeCharges;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let categoryConfig: any = null;
+
+      // Map category to API structure
+      switch (category) {
+        case "SINGLE_OCC_OFFICE":
+          categoryConfig = propertyTypeCharges.singleOccOffice;
+          break;
+        case "SINGLE_OCC_RESIDENTIAL":
+          categoryConfig = propertyTypeCharges.singleOccResidential;
+          break;
+        case "HOTEL_HOSTEL_GUEST":
+          categoryConfig = propertyTypeCharges.hotelHostelGuest;
+          break;
+        case "RECREATION_CINEMA":
+          categoryConfig = propertyTypeCharges.recreationCinema;
+          break;
+        case "SCHOOLS_TRAINING":
+          categoryConfig = propertyTypeCharges.school;
+          break;
+        case "PETROL_GAS_STATION":
+          categoryConfig = propertyTypeCharges.petrolGasStation;
+          break;
+        case "HOSPITAL_CLINIC":
+          categoryConfig = propertyTypeCharges.hospitalClinic;
+          break;
+        case "MULTI_OCC_BUSINESS":
+          categoryConfig = propertyTypeCharges.multiOccBusiness;
+          break;
+        case "MULTI_OCC_MIXED_RES":
+          categoryConfig = propertyTypeCharges.multiOccMixedRes;
+          break;
+        default:
+          categoryConfig = propertyTypeCharges.others;
+      }
+
+      if (!categoryConfig) {
+        throw new Error("Category configuration not found");
+      }
+
+      // Calculate premium table base using API charges (convert strings to numbers)
       let premiumTableBase = 0;
-      const breakdown: any = {};
+      const breakdown: Record<string, number> = {};
 
-      if (categoryConfig.charges.perFloor && answers.floors) {
+      if (categoryConfig.perFloor && answers.floors) {
         const floors = Number(answers.floors.value) || 1;
-        premiumTableBase += floors * categoryConfig.charges.perFloor;
-        breakdown.floors = floors * categoryConfig.charges.perFloor;
+        const perFloorCharge = Number(categoryConfig.perFloor) || 0;
+        premiumTableBase += floors * perFloorCharge;
+        breakdown.floors = floors * perFloorCharge;
       }
 
-      if (categoryConfig.charges.perPlot && answers.plots) {
+      if (categoryConfig.perPlot && answers.plots) {
         const plots = Number(answers.plots.value) || 1;
-        premiumTableBase += plots * categoryConfig.charges.perPlot;
-        breakdown.plots = plots * categoryConfig.charges.perPlot;
+        const perPlotCharge = Number(categoryConfig.perPlot) || 0;
+        premiumTableBase += plots * perPlotCharge;
+        breakdown.plots = plots * perPlotCharge;
       }
 
-      if (categoryConfig.charges.perRoom && answers.rooms) {
+      if (categoryConfig.perRoom && answers.rooms) {
         const rooms = Number(answers.rooms.value) || 0;
-        premiumTableBase += rooms * categoryConfig.charges.perRoom;
-        breakdown.rooms = rooms * categoryConfig.charges.perRoom;
+        const perRoomCharge = Number(categoryConfig.perRoom) || 0;
+        premiumTableBase += rooms * perRoomCharge;
+        breakdown.rooms = rooms * perRoomCharge;
       }
 
-      if (categoryConfig.charges.perBed && answers.beds) {
+      if (categoryConfig.perBed && answers.beds) {
         const beds = Number(answers.beds.value) || 0;
-        premiumTableBase += beds * categoryConfig.charges.perBed;
-        breakdown.beds = beds * categoryConfig.charges.perBed;
+        const perBedCharge = Number(categoryConfig.perBed) || 0;
+        premiumTableBase += beds * perBedCharge;
+        breakdown.beds = beds * perBedCharge;
       }
 
-      if (categoryConfig.charges.perPump && answers.pumps) {
+      if (categoryConfig.perPump && answers.pumps) {
         const pumps = Number(answers.pumps.value) || 0;
-        premiumTableBase += pumps * categoryConfig.charges.perPump;
-        breakdown.pumps = pumps * categoryConfig.charges.perPump;
+        const perPumpCharge = Number(categoryConfig.perPump) || 0;
+        premiumTableBase += pumps * perPumpCharge;
+        breakdown.pumps = pumps * perPumpCharge;
       }
 
-      if (categoryConfig.charges.perCinemaSeat && answers.seats) {
+      if (categoryConfig.perCinemaSeat && answers.seats) {
         const seats = Number(answers.seats.value) || 0;
-        premiumTableBase += seats * categoryConfig.charges.perCinemaSeat;
-        breakdown.seats = seats * categoryConfig.charges.perCinemaSeat;
+        const perCinemaSeatCharge = Number(categoryConfig.perCinemaSeat) || 0;
+        premiumTableBase += seats * perCinemaSeatCharge;
+        breakdown.seats = seats * perCinemaSeatCharge;
       }
 
-      if (categoryConfig.charges.perBlock && answers.blocks) {
+      if (categoryConfig.perBlock && answers.blocks) {
         const blocks = Number(answers.blocks.value) || 0;
-        premiumTableBase += blocks * categoryConfig.charges.perBlock;
-        breakdown.blocks = blocks * categoryConfig.charges.perBlock;
+        const perBlockCharge = Number(categoryConfig.perBlock) || 0;
+        premiumTableBase += blocks * perBlockCharge;
+        breakdown.blocks = blocks * perBlockCharge;
       }
 
-      if (categoryConfig.charges.perPupilSeat && answers.pupilSeats) {
+      if (categoryConfig.perPupilSeat && answers.pupilSeats) {
         const pupilSeats = Number(answers.pupilSeats.value) || 0;
-        premiumTableBase += pupilSeats * categoryConfig.charges.perPupilSeat;
-        breakdown.pupilSeats = pupilSeats * categoryConfig.charges.perPupilSeat;
+        const perPupilSeatCharge = Number(categoryConfig.perPupilSeat) || 0;
+        premiumTableBase += pupilSeats * perPupilSeatCharge;
+        breakdown.pupilSeats = pupilSeats * perPupilSeatCharge;
       }
 
-      if (categoryConfig.charges.perApartmentOfficeWing && answers.apartments) {
+      if (categoryConfig.perApartmentOfficeWing && answers.apartments) {
         const apartments = Number(answers.apartments.value) || 0;
-        premiumTableBase +=
-          apartments * categoryConfig.charges.perApartmentOfficeWing;
-        breakdown.apartments =
-          apartments * categoryConfig.charges.perApartmentOfficeWing;
+        const perApartmentOfficeWingCharge =
+          Number(categoryConfig.perApartmentOfficeWing) || 0;
+        premiumTableBase += apartments * perApartmentOfficeWingCharge;
+        breakdown.apartments = apartments * perApartmentOfficeWingCharge;
       }
 
-      // Risk units calculation
-      let riskUnits = 0;
-      const baseRiskRate = 2000;
+      // Risk percentage modifiers from API (applied on premium)
+      let totalRiskModifier = 0; // This will be a percentage like 0.05 for 5%
 
-      // Age risk
+      // Age risk from API (percentage modifiers)
       const buildingAge = answers.buildingAge?.value as string;
-      if (buildingAge === "old") riskUnits += 3;
-      else if (buildingAge === "mature") riskUnits += 1;
+      const ageRisks = chargesData.data.riskAdjustments.buildingAge;
+      console.log("Building Age:", buildingAge);
+      console.log("Age Risks from API:", ageRisks);
 
-      // Material risk
+      if (buildingAge === "20+" && ageRisks?.["20+"]) {
+        totalRiskModifier += Number(ageRisks["20+"]); // e.g., 0.25 for 25% surcharge
+        console.log("Applied old building risk:", Number(ageRisks["20+"]));
+      } else if (buildingAge === "10-20" && ageRisks?.["10-20"]) {
+        totalRiskModifier += Number(ageRisks["10-20"]); // e.g., 0.10 for 10% surcharge
+        console.log("Applied mature building risk:", Number(ageRisks["10-20"]));
+      } else if (buildingAge === "5-10" && ageRisks?.["5-10"]) {
+        totalRiskModifier += Number(ageRisks["5-10"]); // e.g., -0.05 for 5% discount
+        console.log("Applied recent building risk:", Number(ageRisks["5-10"]));
+      } else if (buildingAge === "0-5" && ageRisks?.["0-5"]) {
+        totalRiskModifier += Number(ageRisks["0-5"]); // e.g., -0.01 for 1% discount
+        console.log("Applied new building risk:", Number(ageRisks["0-5"]));
+      }
+      console.log("Total Risk after Age:", totalRiskModifier);
+
+      // Material risk from API (percentage modifiers)
       const wallMaterial = answers.wallMaterial?.value as string;
-      if (wallMaterial === "wood") riskUnits += 2;
-      else if (wallMaterial === "mud") riskUnits += 3;
-
-      // Condition risk
-      if (answers.buildingCondition?.value === "no") riskUnits += 2;
-
-      // Water proximity risk
-      if (
-        ["sea", "river", "reservoir"].includes(
-          answers.waterProximity?.value as string
-        )
-      ) {
-        riskUnits += 4;
+      const materialRisks = chargesData.data.riskAdjustments.wallMaterial;
+      if (wallMaterial === "wood" && materialRisks?.wood) {
+        totalRiskModifier += Number(materialRisks.wood); // e.g., 0.15 for 15% surcharge
+      } else if (wallMaterial === "mud" && materialRisks?.mud) {
+        totalRiskModifier += Number(materialRisks.mud); // e.g., 0.20 for 20% surcharge
+      } else if (wallMaterial === "brick" && materialRisks?.brick) {
+        totalRiskModifier += Number(materialRisks.brick); // e.g., -0.05 for 5% discount
+      } else if (wallMaterial === "mixed" && materialRisks?.mixedMaterials) {
+        totalRiskModifier += Number(materialRisks.mixedMaterials); // e.g., 0.05 for 5% surcharge
       }
 
-      // Past losses risk
-      if (answers.pastLosses?.value === "yes") riskUnits += 3;
+      // Condition risk (percentage modifier)
+      if (answers.buildingCondition?.value === "no") {
+        const conditionRisk =
+          Number(chargesData.data.riskAdjustments.repairNeeded) || 0.01;
+        totalRiskModifier += conditionRisk; // e.g., 0.10 for 10% surcharge
+      }
 
-      // Nearby risks
+      // Past losses risk (percentage modifier)
+      if (answers.pastLosses?.value === "yes") {
+        const pastLossesRisk =
+          Number(chargesData.data.riskAdjustments.pastLoss) || 0.2;
+        totalRiskModifier += pastLossesRisk; // e.g., 0.20 for 20% surcharge
+      }
+
+      // Nearby/special risks (percentage modifier)
       const nearbyRisk = answers.nearbyRisks?.value as string;
-      if (nearbyRisk === "petrol") riskUnits += 2;
-      else if (nearbyRisk === "industrial") riskUnits += 3;
+      if (["petrol", "industrial"].includes(nearbyRisk)) {
+        const specialRisk =
+          Number(chargesData.data.riskAdjustments.specialRisk) || 0.2;
+        totalRiskModifier += specialRisk; // e.g., 0.20 for 20% surcharge
+      }
 
-      const riskUnitsTotal = riskUnits * baseRiskRate;
+      // Sea level / flood risk from location assessment (percentage modifier)
+      // Risk calculation based on distance to sea level and elevation
+      if (seaLevelData) {
+        // Helper function to parse numeric values from assessment text
+        const parseDistanceFromText = (
+          text: string
+        ): { elevation: number | null; waterDistance: number | null } => {
+          let elevation: number | null = null;
+          let waterDistance: number | null = null;
 
-      // Declared value units
-      const declaredValue = Number(answers.declaredValue?.value) || 0;
-      const dvUnits = (declaredValue / 1000000) * baseRiskRate;
+          // Pattern 1: "Distance to sea level: X m" or "3. Distance to sea level: X m"
+          const elevationMatch = text.match(
+            /(?:distance to sea level|elevation)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+          );
+          if (elevationMatch) {
+            elevation = parseFloat(elevationMatch[1]);
+          }
 
-      // Calculate subtotal
-      const subtotal = premiumTableBase + riskUnitsTotal + dvUnits;
+          // Pattern 2: "Distance to water: X m" or "4. Distance to water: X m"
+          const waterMatch = text.match(
+            /(?:distance to water)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+          );
+          if (waterMatch) {
+            waterDistance = parseFloat(waterMatch[1]);
+          }
+
+          return { elevation, waterDistance };
+        };
+
+        // Try to get values from API fields first
+        let elevationM = seaLevelData.elevation_meters;
+        let distanceToWaterM: number | null = null;
+
+        // If not available, try to parse from assessment text
+        if (
+          (!elevationM || elevationM === 0) &&
+          seaLevelData.sea_level_assessment
+        ) {
+          const parsed = parseDistanceFromText(
+            seaLevelData.sea_level_assessment
+          );
+          if (parsed.elevation !== null) {
+            elevationM = parsed.elevation;
+          }
+          distanceToWaterM = parsed.waterDistance;
+        }
+
+        // Convert distance to water from meters to km if available
+        const distanceToWaterKm =
+          distanceToWaterM !== null ? distanceToWaterM / 1000 : null;
+
+        console.log(
+          "Sea Level Data - Elevation (m):",
+          elevationM,
+          "Distance to Water (m):",
+          distanceToWaterM
+        );
+
+        let seaLevelRisk = 0;
+        let riskCategory = "";
+
+        // Calculate risk based on elevation (primary) and distance to water (secondary)
+        // Priority: Elevation is most critical, then proximity to water
+
+        if (elevationM !== undefined && elevationM !== null && elevationM > 0) {
+          // Elevation-based risk calculation
+          if (elevationM < 5) {
+            // Very high risk: Below 5m elevation (extreme flood risk)
+            seaLevelRisk = 0.4; // 40% surcharge
+            riskCategory = "VERY HIGH";
+          } else if (elevationM < 10) {
+            // High risk: 5-10m elevation (high flood risk)
+            seaLevelRisk = 0.35; // 35% surcharge
+            riskCategory = "HIGH";
+          } else if (elevationM < 20) {
+            // Medium risk: 10-20m elevation (moderate flood risk)
+            seaLevelRisk = 0.2; // 20% surcharge
+            riskCategory = "MEDIUM";
+          } else if (elevationM < 50) {
+            // Low risk: 20-50m elevation (low flood risk)
+            seaLevelRisk = 0.08; // 8% surcharge
+            riskCategory = "LOW";
+          } else {
+            // Very low risk: Above 50m elevation (minimal flood risk)
+            seaLevelRisk = 0; // No surcharge
+            riskCategory = "VERY LOW";
+          }
+
+          // Add additional risk if very close to water (< 100m)
+          if (distanceToWaterM !== null && distanceToWaterM < 100) {
+            seaLevelRisk += 0.05; // Additional 5% surcharge for proximity to water
+            console.log(
+              "Additional 5% risk added for proximity to water (<100m)"
+            );
+          }
+        } else if (distanceToWaterKm !== null) {
+          // Fallback to water distance-based calculation if elevation not available
+          if (distanceToWaterKm < 0.1) {
+            // Very high risk: Within 100m of water
+            seaLevelRisk = 0.4; // 40% surcharge
+            riskCategory = "VERY HIGH";
+          } else if (distanceToWaterKm < 0.5) {
+            // High risk: 100-500m from water
+            seaLevelRisk = 0.35; // 35% surcharge
+            riskCategory = "HIGH";
+          } else if (distanceToWaterKm < 1) {
+            // Medium risk: 500m-1km from water
+            seaLevelRisk = 0.2; // 20% surcharge
+            riskCategory = "MEDIUM";
+          } else if (distanceToWaterKm < 5) {
+            // Low risk: 1-5km from water
+            seaLevelRisk = 0.08; // 8% surcharge
+            riskCategory = "LOW";
+          } else {
+            // Very low risk: More than 5km from water
+            seaLevelRisk = 0; // No surcharge
+            riskCategory = "VERY LOW";
+          }
+        }
+
+        if (seaLevelRisk > 0) {
+          totalRiskModifier += seaLevelRisk;
+          console.log(
+            `Applied ${riskCategory} flood risk (${seaLevelRisk * 100}%):`,
+            `Elevation: ${elevationM}m, Distance to water: ${
+              distanceToWaterKm !== null ? distanceToWaterKm + "km" : "N/A"
+            }`
+          );
+        } else {
+          console.log(
+            "Applied VERY LOW flood risk: 0% - Property is well elevated"
+          );
+        }
+      }
+
+      // propertyBaseFee is a fixed base amount (e.g., 5000), not a percentage
+      const propertyBaseFee = Number(chargesData.data.propertyBaseFee) || 5000;
+
+      // Calculate initial subtotal: premium table base + property base fee
+      let subtotal = premiumTableBase + propertyBaseFee;
+      console.log("Initial Subtotal (before risk adjustment):", subtotal);
+
+      // FIRST: Apply total risk modifier to subtotal
+      console.log("Total Risk Modifier (as percentage):", totalRiskModifier);
+      const riskAdjustmentOnSubtotal = subtotal * totalRiskModifier;
+      console.log("Risk Adjustment on Subtotal:", riskAdjustmentOnSubtotal);
+      subtotal += riskAdjustmentOnSubtotal;
+      console.log("Subtotal after risk adjustment:", subtotal);
 
       // Calculate discounts
       const discounts = [];
       const security = (answers.security?.value as string[]) || [];
       const fireSafety = (answers.fireSafety?.value as string[]) || [];
+      const apiSecuritySafety =
+        chargesData.data.safetySecurityDiscounts.securitySafety;
+      const apiFireSafety = chargesData.data.safetySecurityDiscounts.fireSafety;
 
+      // Security discounts from API
       if (security.includes("gate") && security.includes("guards")) {
+        const gateDiscount = Number(apiSecuritySafety?.estateGate) || 0;
+        const guardDiscount = Number(apiSecuritySafety?.securityGuards) || 0;
+        const totalDiscount = gateDiscount + guardDiscount;
         discounts.push({
           name: "High Security Discount",
-          amount: 0.15,
+          amount: totalDiscount,
           type: "percentage" as const,
         });
       } else if (security.length >= 2) {
-        discounts.push({
-          name: "Security Discount",
-          amount: 0.08,
-          type: "percentage" as const,
+        // Calculate combined discount for multiple security features
+        let totalDiscount = 0;
+        security.forEach((feature) => {
+          if (feature === "gate" && apiSecuritySafety?.estateGate) {
+            totalDiscount += Number(apiSecuritySafety.estateGate);
+          } else if (
+            feature === "guards" &&
+            apiSecuritySafety?.securityGuards
+          ) {
+            totalDiscount += Number(apiSecuritySafety.securityGuards);
+          } else if (feature === "cctv" && apiSecuritySafety?.cctv) {
+            totalDiscount += Number(apiSecuritySafety.cctv);
+          } else if (feature === "locks" && apiSecuritySafety?.strongLocks) {
+            totalDiscount += Number(apiSecuritySafety.strongLocks);
+          }
         });
+        if (totalDiscount > 0) {
+          discounts.push({
+            name: "Security Discount",
+            amount: totalDiscount,
+            type: "percentage" as const,
+          });
+        }
       }
 
+      // Fire safety discounts from API
       if (fireSafety.includes("extinguisher") && fireSafety.includes("alarm")) {
+        const extinguisherDiscount =
+          Number(apiFireSafety?.fireExtinguisher) || 0;
+        const alarmDiscount = Number(apiFireSafety?.smokeAlarm) || 0;
+        const totalDiscount = extinguisherDiscount + alarmDiscount;
         discounts.push({
           name: "Fire Safety Discount",
-          amount: 0.12,
+          amount: totalDiscount,
           type: "percentage" as const,
         });
       } else if (fireSafety.length >= 1) {
-        discounts.push({
-          name: "Basic Fire Safety Discount",
-          amount: 0.05,
-          type: "percentage" as const,
+        // Calculate combined discount for fire safety features
+        let totalDiscount = 0;
+        fireSafety.forEach((feature) => {
+          if (feature === "extinguisher" && apiFireSafety?.fireExtinguisher) {
+            totalDiscount += Number(apiFireSafety.fireExtinguisher);
+          } else if (feature === "alarm" && apiFireSafety?.smokeAlarm) {
+            totalDiscount += Number(apiFireSafety.smokeAlarm);
+          } else if (feature === "water" && apiFireSafety?.waterAccess) {
+            totalDiscount += Number(apiFireSafety.waterAccess);
+          }
         });
+        if (totalDiscount > 0) {
+          discounts.push({
+            name: "Basic Fire Safety Discount",
+            amount: totalDiscount,
+            type: "percentage" as const,
+          });
+        }
       }
 
-      if (buildingAge === "new") {
-        discounts.push({
-          name: "New Property Discount",
-          amount: 0.08,
-          type: "percentage" as const,
-        });
+      // New building discount already applied in age risk modifier above
+      if (buildingAge === "0-5" && ageRisks?.["0-5"]) {
+        const newBuildingBonus = Number(ageRisks["0-5"]);
+        if (newBuildingBonus < 0) {
+          discounts.push({
+            name: "New Property Discount",
+            amount: Math.abs(newBuildingBonus),
+            type: "percentage" as const,
+          });
+        }
       }
 
-      // Calculate surcharges
+      // Calculate surcharges (these are already included in totalRiskModifier above)
+      // We're creating this list for display purposes in the breakdown
       const surcharges = [];
 
-      if (buildingAge === "old") {
-        surcharges.push({
-          name: "Old Property Surcharge",
-          amount: 0.25,
-          type: "percentage" as const,
-        });
+      if (buildingAge === "20+" && ageRisks?.["20+"]) {
+        const oldBuildingSurcharge = Number(ageRisks["20+"]);
+        if (oldBuildingSurcharge > 0) {
+          surcharges.push({
+            name: "Old Property Surcharge",
+            amount: oldBuildingSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       if (
-        ["sea", "river", "reservoir"].includes(
-          answers.waterProximity?.value as string
-        )
+        ["petrol", "industrial"].includes(answers.nearbyRisks?.value as string)
       ) {
-        surcharges.push({
-          name: "Flood Risk Surcharge",
-          amount: 0.3,
-          type: "percentage" as const,
-        });
+        const specialRiskSurcharge =
+          Number(chargesData.data.riskAdjustments.specialRisk) || 0;
+        if (specialRiskSurcharge > 0) {
+          surcharges.push({
+            name: "Special Risk Surcharge",
+            amount: specialRiskSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
-      if (answers.nearbyRisks?.value === "industrial") {
-        surcharges.push({
-          name: "Industrial Risk Surcharge",
-          amount: 0.2,
-          type: "percentage" as const,
-        });
+      // Sea level risk surcharge for display (using distance and elevation)
+      if (seaLevelData) {
+        // Parse values from assessment text
+        const parseDistanceFromText = (
+          text: string
+        ): { elevation: number | null; waterDistance: number | null } => {
+          let elevation: number | null = null;
+          let waterDistance: number | null = null;
+
+          const elevationMatch = text.match(
+            /(?:distance to sea level|elevation)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+          );
+          if (elevationMatch) {
+            elevation = parseFloat(elevationMatch[1]);
+          }
+
+          const waterMatch = text.match(
+            /(?:distance to water)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+          );
+          if (waterMatch) {
+            waterDistance = parseFloat(waterMatch[1]);
+          }
+
+          return { elevation, waterDistance };
+        };
+
+        // Get values from API or parse from text
+        let elevationM = seaLevelData.elevation_meters;
+        let distanceToWaterM: number | null = null;
+
+        if (
+          (!elevationM || elevationM === 0) &&
+          seaLevelData.sea_level_assessment
+        ) {
+          const parsed = parseDistanceFromText(
+            seaLevelData.sea_level_assessment
+          );
+          if (parsed.elevation !== null) {
+            elevationM = parsed.elevation;
+          }
+          distanceToWaterM = parsed.waterDistance;
+        }
+
+        const distanceToWaterKm =
+          distanceToWaterM !== null ? distanceToWaterM / 1000 : null;
+        let seaLevelSurcharge = 0;
+        let riskLevel = "";
+
+        // Match the same logic as the risk calculation above
+        if (elevationM !== undefined && elevationM !== null && elevationM > 0) {
+          if (elevationM < 5) {
+            seaLevelSurcharge = 0.4;
+            riskLevel = "Very High Flood Risk";
+          } else if (elevationM < 10) {
+            seaLevelSurcharge = 0.35;
+            riskLevel = "High Flood Risk";
+          } else if (elevationM < 20) {
+            seaLevelSurcharge = 0.2;
+            riskLevel = "Medium Flood Risk";
+          } else if (elevationM < 50) {
+            seaLevelSurcharge = 0.08;
+            riskLevel = "Low Flood Risk";
+          }
+
+          // Add additional risk if very close to water (< 100m)
+          if (distanceToWaterM !== null && distanceToWaterM < 100) {
+            seaLevelSurcharge += 0.05;
+          }
+        } else if (distanceToWaterKm !== null) {
+          if (distanceToWaterKm < 0.1) {
+            seaLevelSurcharge = 0.4;
+            riskLevel = "Very High Flood Risk";
+          } else if (distanceToWaterKm < 0.5) {
+            seaLevelSurcharge = 0.35;
+            riskLevel = "High Flood Risk";
+          } else if (distanceToWaterKm < 1) {
+            seaLevelSurcharge = 0.2;
+            riskLevel = "Medium Flood Risk";
+          } else if (distanceToWaterKm < 5) {
+            seaLevelSurcharge = 0.08;
+            riskLevel = "Low Flood Risk";
+          }
+        }
+
+        if (seaLevelSurcharge > 0) {
+          surcharges.push({
+            name: `Location ${riskLevel} Surcharge`,
+            amount: seaLevelSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       if (answers.businessUse?.value === "yes") {
-        surcharges.push({
-          name: "Commercial Use Surcharge",
-          amount: 0.15,
-          type: "percentage" as const,
-        });
+        const commercialUseSurcharge =
+          Number(chargesData.data.riskAdjustments.commercialUse) || 0;
+        if (commercialUseSurcharge > 0) {
+          surcharges.push({
+            name: "Commercial Use Surcharge",
+            amount: commercialUseSurcharge,
+            type: "percentage" as const,
+          });
+        }
       }
 
       // Apply discounts and surcharges
@@ -1419,21 +2190,22 @@ export function GetQuote() {
         }
       });
 
-      // Add rider costs
+      // Add rider costs from API
       const riders = (answers.riders?.value as string[]) || [];
+      const apiExtraCoverage = chargesData.data.extraCoverageFees;
       const riderCosts = {
-        flood: 5000,
-        burglary: 3000,
-        fire: 4000,
-        liability: 6000,
-        materials: 2500,
+        flood: Number(apiExtraCoverage?.floodProtection) || 5000,
+        burglary: Number(apiExtraCoverage?.burglaryCover) || 3000,
+        fire: Number(apiExtraCoverage?.extendedFireCover) || 4000,
+        liability: Number(apiExtraCoverage?.publicLiability) || 6000,
+        theft: Number(apiExtraCoverage?.theft) || 2500,
       };
 
       riders.forEach((rider) => {
         total += riderCosts[rider as keyof typeof riderCosts] || 0;
       });
 
-      // Apply frequency multiplier
+      // Apply frequency multiplier (if available from API in the future)
       const frequency = (answers.paymentFrequency?.value as string) || "annual";
       const frequencyMultipliers = {
         monthly: 1.15,
@@ -1446,13 +2218,25 @@ export function GetQuote() {
         frequencyMultipliers[frequency as keyof typeof frequencyMultipliers];
       total *= frequencyMultiplier;
 
-      // Ensure minimum premium
+      // SECOND: Apply total risk modifier to the final total amount
+      console.log("Total before second risk adjustment:", total);
+      const riskAdjustmentOnTotal = total * totalRiskModifier;
+      console.log("Risk Adjustment on Total:", riskAdjustmentOnTotal);
+      total += riskAdjustmentOnTotal;
+      console.log("Total after second risk adjustment:", total);
+
+      // Calculate combined risk adjustment for breakdown
+      const totalRiskAdjustment =
+        riskAdjustmentOnSubtotal + riskAdjustmentOnTotal;
+      console.log("Combined Risk Adjustment:", totalRiskAdjustment);
+
+      // Ensure minimum premium (could also come from API in the future)
       total = Math.max(total, 15000);
 
       const premiumBreakdown: PremiumBreakdown = {
         premiumTableBase,
-        riskUnits: riskUnitsTotal,
-        dvUnits,
+        riskUnits: totalRiskAdjustment, // Combined risk adjustment from both subtotal and total
+        dvUnits: propertyBaseFee, // Fixed base fee from API
         subtotal,
         discounts,
         surcharges,
@@ -1467,7 +2251,8 @@ export function GetQuote() {
         premiumBreakdown,
         propertyCategory: category,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Premium calculation error:", error);
       addToast({
         type: "error",
         title: "Calculation Error",
@@ -1476,7 +2261,13 @@ export function GetQuote() {
     } finally {
       setCalculatingPremium(false);
     }
-  }, [quizState.answers, lastCalculationTime, addToast]);
+  }, [
+    quizState.answers,
+    lastCalculationTime,
+    addToast,
+    chargesData,
+    seaLevelData,
+  ]);
 
   // Trigger calculation when relevant answers change
   useEffect(() => {
@@ -1501,25 +2292,52 @@ export function GetQuote() {
     console.log("quiz.answer", { questionId, value, label });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (validateCurrentQuestion()) {
-      if (quizState.currentQuestion < questions.length - 1) {
+      // Check if we're on the last question of the current step
+      const isLastQuestionInCurrentStep =
+        quizState.currentQuestion === currentStepQuestions.length - 1;
+
+      if (isLastQuestionInCurrentStep) {
+        // Save progress for this step
+        await handleCheckout(quizState.currentStep);
+
+        // Check if we're on step 4 (last step before payment)
+        if (quizState.currentStep === 4) {
+          // Show payment modal (step 5)
+          setShowTermsModal(true);
+        } else {
+          // Move to next step and reset question counter
+          setQuizState((prev) => ({
+            ...prev,
+            currentStep: prev.currentStep + 1,
+            currentQuestion: 0,
+          }));
+        }
+      } else {
+        // Move to next question within current step
         setQuizState((prev) => ({
           ...prev,
           currentQuestion: prev.currentQuestion + 1,
         }));
-      } else {
-        // Show terms and conditions
-        setShowTermsModal(true);
       }
     }
   };
 
   const handleBack = () => {
     if (quizState.currentQuestion > 0) {
+      // Go back to previous question in current step
       setQuizState((prev) => ({
         ...prev,
         currentQuestion: prev.currentQuestion - 1,
+      }));
+    } else if (quizState.currentStep > 1) {
+      // Go back to previous step's last question
+      const prevStepQuestions = getQuestionsForStep(quizState.currentStep - 1);
+      setQuizState((prev) => ({
+        ...prev,
+        currentStep: prev.currentStep - 1,
+        currentQuestion: prevStepQuestions.length - 1,
       }));
     }
   };
@@ -1542,7 +2360,17 @@ export function GetQuote() {
       const numValue = Number(answer.value);
       const validation = currentQuestion.validation;
 
-      if (validation?.min && numValue < validation.min) {
+      // Check if conversion to number was successful
+      if (isNaN(numValue)) {
+        addToast({
+          type: "error",
+          title: "Invalid Value",
+          message: "Please enter a valid number",
+        });
+        return false;
+      }
+
+      if (validation?.min !== undefined && numValue < validation.min) {
         addToast({
           type: "error",
           title: "Invalid Value",
@@ -1551,7 +2379,7 @@ export function GetQuote() {
         return false;
       }
 
-      if (validation?.max && numValue > validation.max) {
+      if (validation?.max !== undefined && numValue > validation.max) {
         addToast({
           type: "error",
           title: "Invalid Value",
@@ -1594,13 +2422,310 @@ export function GetQuote() {
     }).format(amount);
   };
 
-  const getProgress = () =>
-    ((quizState.currentQuestion + 1) / questions.length) * 100;
+  const getProgress = () => {
+    // Calculate progress based on steps (4 steps total, each step is 25%)
+    const stepProgress = (quizState.currentStep - 1) * 25;
+    const questionProgressInStep =
+      ((quizState.currentQuestion + 1) / currentStepQuestions.length) * 25;
+    return stepProgress + questionProgressInStep;
+  };
 
   // Log quiz start
   useEffect(() => {
     console.log("quiz.start", { timestamp: new Date().toISOString() });
   }, []);
+
+  // Handle resume from pending quote
+  useEffect(() => {
+    const resumeQuoteData = localStorage.getItem("resumeQuoteData");
+
+    if (resumeQuoteData) {
+      try {
+        const quoteData = JSON.parse(resumeQuoteData);
+        console.log("Resuming quote from:", quoteData);
+
+        // Map the quote data back to quiz answers
+        const resumedAnswers: Record<string, QuizAnswer> = {};
+
+        // Map all the fields from the quote data to quiz answers
+        if (quoteData.data) {
+          const data = quoteData.data;
+
+          // Step 1: Property Info
+          if (data.category) {
+            resumedAnswers.propertyType = {
+              questionId: "propertyType",
+              value: data.category.toLowerCase(),
+            };
+          }
+          if (data.otherPropertyType) {
+            resumedAnswers.propertyTypeOther = {
+              questionId: "propertyTypeOther",
+              value: data.otherPropertyType,
+            };
+          }
+          if (data.charges?.perPlot) {
+            // Clamp the value to valid range (1-10) to match form validation
+            const plotValue = Math.min(Math.max(data.charges.perPlot, 1), 10);
+            resumedAnswers.plots = {
+              questionId: "plots",
+              value: plotValue,
+            };
+            if (data.charges.perPlot > 10) {
+              console.warn(
+                `Plots value ${data.charges.perPlot} exceeds max (10), clamped to 10`
+              );
+            }
+          }
+          if (data.address) {
+            resumedAnswers.address = {
+              questionId: "address",
+              value: data.address,
+            };
+          }
+          // Extract state from address if needed
+          if (data.address && data.address.includes(",")) {
+            const addressParts = data.address.split(",");
+            if (addressParts.length > 1) {
+              resumedAnswers.state = {
+                questionId: "state",
+                value: addressParts[addressParts.length - 1].trim(),
+              };
+            }
+          }
+
+          // Step 2: Structure & Condition
+          if (data.wallMaterial) {
+            resumedAnswers.wallMaterial = {
+              questionId: "wallMaterial",
+              value: data.wallMaterial,
+            };
+          }
+          if (data.roofMaterial) {
+            resumedAnswers.roofType = {
+              questionId: "roofType",
+              value: data.roofMaterial,
+            };
+          }
+          if (data.buildingAge) {
+            resumedAnswers.buildingAge = {
+              questionId: "buildingAge",
+              value: data.buildingAge,
+            };
+          }
+          if (data.repairNeeded !== undefined) {
+            resumedAnswers.buildingCondition = {
+              questionId: "buildingCondition",
+              value: data.repairNeeded ? "poor" : "good",
+            };
+          }
+
+          // Step 3: Safety, Use & Risks
+          if (data.securitySafety?.occupied !== undefined) {
+            resumedAnswers.occupancy = {
+              questionId: "occupancy",
+              value: data.securitySafety.occupied ? "owner" : "vacant",
+            };
+          }
+          if (data.securitySafety) {
+            const security = data.securitySafety;
+            const securityFeatures: string[] = [];
+            if (security.estateGate) securityFeatures.push("gate");
+            if (security.cctv) securityFeatures.push("cctv");
+            if (security.securityGuards) securityFeatures.push("guards");
+            if (security.strongLocks) securityFeatures.push("locks");
+            if (security.noGlassPanels) securityFeatures.push("noGlass");
+            if (securityFeatures.length > 0) {
+              resumedAnswers.security = {
+                questionId: "security",
+                value: securityFeatures,
+              };
+            }
+          }
+          if (data.fireSafety) {
+            const fire = data.fireSafety;
+            const fireFeatures: string[] = [];
+            if (fire.fireExtinguisher) fireFeatures.push("extinguisher");
+            if (fire.smokeAlarm) fireFeatures.push("alarm");
+            if (fire.waterAccess) fireFeatures.push("water");
+            if (fireFeatures.length > 0) {
+              resumedAnswers.fireSafety = {
+                questionId: "fireSafety",
+                value: fireFeatures,
+              };
+            }
+          }
+          if (data.floodRisk) {
+            resumedAnswers.location = {
+              questionId: "location",
+              value: data.floodRisk,
+            };
+          }
+          if (
+            data.pastLoss !== undefined ||
+            data.unOccupiedForAwhile !== undefined
+          ) {
+            const riskFactors: string[] = [];
+            if (data.pastLoss) riskFactors.push("pastClaim");
+            if (data.unOccupiedForAwhile) riskFactors.push("vacant");
+            if (data.commercialUse) riskFactors.push("commercial");
+            resumedAnswers.risks = {
+              questionId: "risks",
+              value: riskFactors,
+            };
+          }
+          if (data.pastLoss && data.pastLossDetails) {
+            resumedAnswers.pastClaimDetails = {
+              questionId: "pastClaimDetails",
+              value: data.pastLossDetails,
+            };
+          }
+          if (data.unOccupiedDuration) {
+            resumedAnswers.vacantMonths = {
+              questionId: "vacantMonths",
+              value: data.unOccupiedDuration,
+            };
+          }
+
+          // Step 4: Extras & Value
+          if (data.extraCoverage) {
+            const riders: string[] = [];
+            if (data.extraCoverage.theft) riders.push("burglary");
+            if (data.extraCoverage.floodProtection) riders.push("flood");
+            if (data.extraCoverage.publicLiability) riders.push("liability");
+            if (data.extraCoverage.extendedFireCover) riders.push("fire");
+            if (riders.length > 0) {
+              resumedAnswers.riders = {
+                questionId: "riders",
+                value: riders,
+              };
+            }
+          }
+          if (data.propertyValue) {
+            resumedAnswers.declaredValue = {
+              questionId: "declaredValue",
+              value: data.propertyValue,
+            };
+          }
+          if (data.paymentFrequency) {
+            resumedAnswers.paymentFrequency = {
+              questionId: "paymentFrequency",
+              value: data.paymentFrequency.toLowerCase(),
+            };
+          }
+
+          // Determine which step to resume from
+          const savedStep = data.step || 1;
+
+          console.log("Resumed answers:", resumedAnswers);
+          console.log("Resuming from step:", savedStep);
+
+          // Calculate which question within the step to resume from
+          // We need to determine which questions in the current step have NOT been answered
+          const step1Questions = [
+            "propertyType",
+            "propertyTypeOther",
+            "floors",
+            "rooms",
+            "beds",
+            "blocks",
+            "pupilSeats",
+            "pumps",
+            "seats",
+            "plots",
+          ];
+          const step2Questions = [
+            "wallMaterial",
+            "wallMaterialOther",
+            "roofType",
+            "roofTypeOther",
+            "buildingAge",
+            "buildingCondition",
+          ];
+          const step3Questions = [
+            "occupancy",
+            "furnished",
+            "occupancyOther",
+            "businessUse",
+            "businessDetails",
+            "unoccupied",
+            "unoccupiedDuration",
+            "propertyLocation",
+            "pastLosses",
+            "lossDetails",
+            "nearbyRisks",
+            "nearbyRiskOther",
+            "security",
+            "fireSafety",
+          ];
+          const step4Questions = [
+            "payingGuests",
+            "guestCount",
+            "domesticStaff",
+            "previousDecline",
+            "declineDetails",
+            "currentInsurance",
+            "insuranceDetails",
+            "riders",
+            "declaredValue",
+            "paymentFrequency",
+          ];
+
+          let currentStepQuestionIds: string[] = [];
+          if (savedStep === 1) currentStepQuestionIds = step1Questions;
+          else if (savedStep === 2) currentStepQuestionIds = step2Questions;
+          else if (savedStep === 3) currentStepQuestionIds = step3Questions;
+          else if (savedStep === 4) currentStepQuestionIds = step4Questions;
+
+          // Find the first unanswered question in the current step
+          let resumeQuestionIndex = 0;
+          for (let i = 0; i < currentStepQuestionIds.length; i++) {
+            const questionId = currentStepQuestionIds[i];
+            if (!resumedAnswers[questionId]) {
+              resumeQuestionIndex = i;
+              break;
+            }
+            // If all questions are answered, start at the last question
+            if (i === currentStepQuestionIds.length - 1) {
+              resumeQuestionIndex = i;
+            }
+          }
+
+          console.log("Resume question index:", resumeQuestionIndex);
+
+          // Set the quiz state with resumed data
+          setQuizState({
+            answers: resumedAnswers,
+            currentQuestion: resumeQuestionIndex, // Resume at the first unanswered question
+            totalQuestions: 0, // Will be updated by the questions effect
+            currentStep: savedStep,
+            propertyCategory: data.category || "",
+            premiumBreakdown: null,
+          });
+
+          addToast({
+            type: "success",
+            title: "Welcome Back!",
+            message: `Resuming from Step ${savedStep}, Question ${
+              resumeQuestionIndex + 1
+            }. Your previous answers have been restored.`,
+          });
+        }
+
+        // Clear the resume data after loading (keep quoteId for updates)
+        localStorage.removeItem("resumeQuoteData");
+      } catch (error) {
+        console.error("Failed to parse resume quote data:", error);
+        localStorage.removeItem("resumeQuoteData");
+        addToast({
+          type: "error",
+          title: "Resume Failed",
+          message: "Could not restore your previous answers. Starting fresh.",
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
   if (!currentQuestion) {
     return (
@@ -1633,8 +2758,58 @@ export function GetQuote() {
                 className="text-gray-600 dark:text-gray-400 animate-fade-in"
                 style={{ animationDelay: "200ms" }}
               >
-                Question {quizState.currentQuestion + 1} of {questions.length}
+                Step {quizState.currentStep} of 4 • Question{" "}
+                {quizState.currentQuestion + 1} of {currentStepQuestions.length}
               </p>
+            </div>
+          </div>
+
+          {/* Step Indicator */}
+          <div
+            className="mb-8 animate-fade-in"
+            style={{ animationDelay: "300ms" }}
+          >
+            <div className="max-w-4xl mx-auto">
+              <div className="flex justify-between items-center">
+                {[1, 2, 3, 4].map((step) => (
+                  <div key={step} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
+                          step < quizState.currentStep
+                            ? "bg-green-500 text-white"
+                            : step === quizState.currentStep
+                            ? "bg-blue-600 text-white ring-4 ring-blue-200"
+                            : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {step < quizState.currentStep ? "✓" : step}
+                      </div>
+                      <span
+                        className={`text-xs mt-2 font-medium ${
+                          step === quizState.currentStep
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {step === 1 && "Property Info"}
+                        {step === 2 && "Structure"}
+                        {step === 3 && "Safety & Use"}
+                        {step === 4 && "Extras & Value"}
+                      </span>
+                    </div>
+                    {step < 4 && (
+                      <div
+                        className={`flex-1 h-1 mx-2 rounded ${
+                          step < quizState.currentStep
+                            ? "bg-green-500"
+                            : "bg-gray-200 dark:bg-gray-700"
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1644,8 +2819,8 @@ export function GetQuote() {
             style={{ animationDelay: "400ms" }}
           >
             <div className="max-w-2xl mx-auto">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Progress</span>
+              {/* <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                <span>Step Progress</span>
                 <span>{Math.round(getProgress())}% Complete</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
@@ -1653,10 +2828,10 @@ export function GetQuote() {
                   className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${getProgress()}%` }}
                 />
-              </div>
+              </div> */}
 
               {/* Step Indicators */}
-              <div className="flex justify-between mt-4">
+              {/* <div className="flex justify-between mt-4">
                 {[1, 2, 3, 4, 5].map((step) => {
                   const stepProgress = ((step - 1) / 4) * 100;
                   const isCompleted = getProgress() > stepProgress;
@@ -1693,7 +2868,7 @@ export function GetQuote() {
                     </div>
                   );
                 })}
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -1815,31 +2990,415 @@ export function GetQuote() {
                   {(currentQuestion.type === "number" ||
                     currentQuestion.type === "text") && (
                     <div className="max-w-md animate-in slide-in-from-bottom-4 duration-300">
-                      <Input
-                        type={
-                          currentQuestion.type === "number" ? "number" : "text"
-                        }
-                        value={
-                          quizState.answers[
-                            currentQuestion.id
-                          ]?.value?.toString() || ""
-                        }
-                        onChange={(e) => {
-                          const value =
-                            currentQuestion.type === "number"
-                              ? Number(e.target.value)
-                              : e.target.value;
-                          handleAnswer(currentQuestion.id, value);
-                        }}
-                        placeholder={
-                          currentQuestion.type === "number"
-                            ? "Enter number"
-                            : "Enter details"
-                        }
-                        min={currentQuestion.validation?.min}
-                        max={currentQuestion.validation?.max}
-                        className="text-lg p-4"
-                      />
+                      {currentQuestion.id === "propertyLocation" ? (
+                        <>
+                          <GooglePlacesInput
+                            value={
+                              quizState.answers[
+                                currentQuestion.id
+                              ]?.value?.toString() || ""
+                            }
+                            onChange={async (value, placeDetails) => {
+                              handleAnswer(currentQuestion.id, value);
+                              // Call sea level API when address is selected
+                              if (
+                                placeDetails &&
+                                placeDetails.formatted_address
+                              ) {
+                                console.log("Place details:", placeDetails);
+                                try {
+                                  await getSeaLevel({
+                                    location: placeDetails.formatted_address,
+                                  });
+                                  addToast({
+                                    type: "info",
+                                    title: "Location Risk Assessment",
+                                    message: "Analyzing location flood risk...",
+                                  });
+                                } catch (error) {
+                                  console.error(
+                                    "Error fetching sea level data:",
+                                    error
+                                  );
+                                }
+                              }
+                            }}
+                            placeholder="Start typing your address..."
+                            className="text-lg p-4"
+                          />
+
+                          {/* Sea Level Assessment Display */}
+                          {isLoadingSeaLevel && (
+                            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border border-blue-200 dark:border-blue-800 animate-in slide-in-from-top-2 duration-300">
+                              <div className="flex items-center space-x-3">
+                                <div className="relative">
+                                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                                    <Droplets className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-pulse" />
+                                  </div>
+                                  <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-ping"></div>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="h-4 w-32 bg-blue-200/50 dark:bg-blue-700/50 rounded animate-pulse"></div>
+                                  </div>
+                                  <div className="mt-1 h-3 w-48 bg-blue-100/50 dark:bg-blue-800/50 rounded animate-pulse"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {seaLevelData && !isLoadingSeaLevel && (
+                            <div className="mt-4 animate-in slide-in-from-top-2 duration-300">
+                              {(() => {
+                                // Parse values from assessment text
+                                const parseDistanceFromText = (
+                                  text: string
+                                ): {
+                                  elevation: number | null;
+                                  waterDistance: number | null;
+                                } => {
+                                  let elevation: number | null = null;
+                                  let waterDistance: number | null = null;
+
+                                  const elevationMatch = text.match(
+                                    /(?:distance to sea level|elevation)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+                                  );
+                                  if (elevationMatch) {
+                                    elevation = parseFloat(elevationMatch[1]);
+                                  }
+
+                                  const waterMatch = text.match(
+                                    /(?:distance to water)[:\s]+(\d+(?:\.\d+)?)\s*m(?:etres|eters)?/i
+                                  );
+                                  if (waterMatch) {
+                                    waterDistance = parseFloat(waterMatch[1]);
+                                  }
+
+                                  return { elevation, waterDistance };
+                                };
+
+                                // Get values from API or parse from text
+                                let elevationM = seaLevelData.elevation_meters;
+                                let distanceToWaterM: number | null = null;
+
+                                if (
+                                  (!elevationM || elevationM === 0) &&
+                                  seaLevelData.sea_level_assessment
+                                ) {
+                                  const parsed = parseDistanceFromText(
+                                    seaLevelData.sea_level_assessment
+                                  );
+                                  if (parsed.elevation !== null) {
+                                    elevationM = parsed.elevation;
+                                  }
+                                  distanceToWaterM = parsed.waterDistance;
+                                }
+
+                                const distanceKm =
+                                  seaLevelData.distance_to_sea_level_km;
+
+                                let bgGradient = "";
+                                let borderColor = "";
+                                let iconBg = "";
+                                let iconColor = "";
+                                let riskBadgeColor = "";
+                                let riskBadgeBg = "";
+                                let riskLevel = "";
+                                let icon = Droplets;
+
+                                // Determine risk level based on elevation (primary) or distance (fallback)
+                                if (
+                                  elevationM !== undefined &&
+                                  elevationM !== null &&
+                                  elevationM > 0
+                                ) {
+                                  if (elevationM < 5) {
+                                    bgGradient =
+                                      "from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20";
+                                    borderColor =
+                                      "border-red-300 dark:border-red-700";
+                                    iconBg = "bg-red-100 dark:bg-red-900/40";
+                                    iconColor =
+                                      "text-red-600 dark:text-red-400";
+                                    riskBadgeColor =
+                                      "text-red-700 dark:text-red-300";
+                                    riskBadgeBg =
+                                      "bg-red-100 dark:bg-red-900/40";
+                                    riskLevel = "Very High Flood Risk";
+                                    icon = AlertTriangle;
+                                  } else if (elevationM < 10) {
+                                    bgGradient =
+                                      "from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20";
+                                    borderColor =
+                                      "border-red-300 dark:border-red-700";
+                                    iconBg = "bg-red-100 dark:bg-red-900/40";
+                                    iconColor =
+                                      "text-red-600 dark:text-red-400";
+                                    riskBadgeColor =
+                                      "text-red-700 dark:text-red-300";
+                                    riskBadgeBg =
+                                      "bg-red-100 dark:bg-red-900/40";
+                                    riskLevel = "High Flood Risk";
+                                    icon = AlertTriangle;
+                                  } else if (elevationM < 20) {
+                                    bgGradient =
+                                      "from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20";
+                                    borderColor =
+                                      "border-yellow-300 dark:border-yellow-700";
+                                    iconBg =
+                                      "bg-yellow-100 dark:bg-yellow-900/40";
+                                    iconColor =
+                                      "text-yellow-600 dark:text-yellow-400";
+                                    riskBadgeColor =
+                                      "text-yellow-700 dark:text-yellow-300";
+                                    riskBadgeBg =
+                                      "bg-yellow-100 dark:bg-yellow-900/40";
+                                    riskLevel = "Medium Flood Risk";
+                                    icon = Droplets;
+                                  } else if (elevationM < 50) {
+                                    bgGradient =
+                                      "from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20";
+                                    borderColor =
+                                      "border-blue-300 dark:border-blue-700";
+                                    iconBg = "bg-blue-100 dark:bg-blue-900/40";
+                                    iconColor =
+                                      "text-blue-600 dark:text-blue-400";
+                                    riskBadgeColor =
+                                      "text-blue-700 dark:text-blue-300";
+                                    riskBadgeBg =
+                                      "bg-blue-100 dark:bg-blue-900/40";
+                                    riskLevel = "Low Flood Risk";
+                                    icon = Droplets;
+                                  } else {
+                                    bgGradient =
+                                      "from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20";
+                                    borderColor =
+                                      "border-green-300 dark:border-green-700";
+                                    iconBg =
+                                      "bg-green-100 dark:bg-green-900/40";
+                                    iconColor =
+                                      "text-green-600 dark:text-green-400";
+                                    riskBadgeColor =
+                                      "text-green-700 dark:text-green-300";
+                                    riskBadgeBg =
+                                      "bg-green-100 dark:bg-green-900/40";
+                                    riskLevel = "Very Low Risk";
+                                    icon = CheckCircle;
+                                  }
+                                } else if (
+                                  distanceKm !== undefined &&
+                                  distanceKm !== null
+                                ) {
+                                  // Fallback to distance-based UI
+                                  if (distanceKm < 1) {
+                                    bgGradient =
+                                      "from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20";
+                                    borderColor =
+                                      "border-red-300 dark:border-red-700";
+                                    iconBg = "bg-red-100 dark:bg-red-900/40";
+                                    iconColor =
+                                      "text-red-600 dark:text-red-400";
+                                    riskBadgeColor =
+                                      "text-red-700 dark:text-red-300";
+                                    riskBadgeBg =
+                                      "bg-red-100 dark:bg-red-900/40";
+                                    riskLevel = "Very High Flood Risk";
+                                    icon = AlertTriangle;
+                                  } else if (distanceKm < 5) {
+                                    bgGradient =
+                                      "from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20";
+                                    borderColor =
+                                      "border-red-300 dark:border-red-700";
+                                    iconBg = "bg-red-100 dark:bg-red-900/40";
+                                    iconColor =
+                                      "text-red-600 dark:text-red-400";
+                                    riskBadgeColor =
+                                      "text-red-700 dark:text-red-300";
+                                    riskBadgeBg =
+                                      "bg-red-100 dark:bg-red-900/40";
+                                    riskLevel = "High Flood Risk";
+                                    icon = AlertTriangle;
+                                  } else if (distanceKm < 10) {
+                                    bgGradient =
+                                      "from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20";
+                                    borderColor =
+                                      "border-yellow-300 dark:border-yellow-700";
+                                    iconBg =
+                                      "bg-yellow-100 dark:bg-yellow-900/40";
+                                    iconColor =
+                                      "text-yellow-600 dark:text-yellow-400";
+                                    riskBadgeColor =
+                                      "text-yellow-700 dark:text-yellow-300";
+                                    riskBadgeBg =
+                                      "bg-yellow-100 dark:bg-yellow-900/40";
+                                    riskLevel = "Medium Flood Risk";
+                                    icon = Droplets;
+                                  } else if (distanceKm < 20) {
+                                    bgGradient =
+                                      "from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20";
+                                    borderColor =
+                                      "border-blue-300 dark:border-blue-700";
+                                    iconBg = "bg-blue-100 dark:bg-blue-900/40";
+                                    iconColor =
+                                      "text-blue-600 dark:text-blue-400";
+                                    riskBadgeColor =
+                                      "text-blue-700 dark:text-blue-300";
+                                    riskBadgeBg =
+                                      "bg-blue-100 dark:bg-blue-900/40";
+                                    riskLevel = "Low Flood Risk";
+                                    icon = Droplets;
+                                  } else {
+                                    bgGradient =
+                                      "from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20";
+                                    borderColor =
+                                      "border-green-300 dark:border-green-700";
+                                    iconBg =
+                                      "bg-green-100 dark:bg-green-900/40";
+                                    iconColor =
+                                      "text-green-600 dark:text-green-400";
+                                    riskBadgeColor =
+                                      "text-green-700 dark:text-green-300";
+                                    riskBadgeBg =
+                                      "bg-green-100 dark:bg-green-900/40";
+                                    riskLevel = "Very Low Risk";
+                                    icon = CheckCircle;
+                                  }
+                                }
+
+                                const Icon = icon;
+
+                                return (
+                                  <div
+                                    className={`p-4 bg-gradient-to-r ${bgGradient} rounded-xl border ${borderColor} shadow-sm`}
+                                  >
+                                    <div className="flex items-start space-x-3">
+                                      <div
+                                        className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}
+                                      >
+                                        <Icon
+                                          className={`h-5 w-5 ${iconColor}`}
+                                        />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                            Location Risk Assessment
+                                          </h4>
+                                          <span
+                                            className={`px-2 py-1 rounded-full text-xs font-medium ${riskBadgeBg} ${riskBadgeColor}`}
+                                          >
+                                            {riskLevel}
+                                          </span>
+                                        </div>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                          {seaLevelData.sea_level_assessment}
+                                        </p>
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                          {elevationM !== undefined &&
+                                            elevationM !== null &&
+                                            elevationM > 0 && (
+                                              <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                                                <span className="mr-1">⛰️</span>
+                                                <span>
+                                                  Elevation:{" "}
+                                                  {elevationM.toFixed(1)}m
+                                                </span>
+                                              </div>
+                                            )}
+                                          {distanceToWaterM !== undefined &&
+                                            distanceToWaterM !== null && (
+                                              <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                                                <span className="mr-1">💧</span>
+                                                <span>
+                                                  Water:{" "}
+                                                  {distanceToWaterM < 1000
+                                                    ? `${distanceToWaterM.toFixed(
+                                                        0
+                                                      )}m`
+                                                    : `${(
+                                                        distanceToWaterM / 1000
+                                                      ).toFixed(1)}km`}
+                                                </span>
+                                              </div>
+                                            )}
+                                          {distanceKm !== undefined &&
+                                            distanceKm !== null && (
+                                              <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                                                <span className="mr-1">📏</span>
+                                                <span>
+                                                  Distance:{" "}
+                                                  {distanceKm.toFixed(1)}km
+                                                </span>
+                                              </div>
+                                            )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <Input
+                          type={
+                            currentQuestion.id === "declaredValue"
+                              ? "text"
+                              : currentQuestion.type === "number"
+                              ? "number"
+                              : "text"
+                          }
+                          value={
+                            currentQuestion.id === "declaredValue"
+                              ? quizState.answers[currentQuestion.id]?.value
+                                ? `₦${parseFloat(
+                                    String(
+                                      quizState.answers[currentQuestion.id]
+                                        ?.value
+                                    ).replace(/[₦,]/g, "") || "0"
+                                  ).toLocaleString()}`
+                                : ""
+                              : quizState.answers[
+                                  currentQuestion.id
+                                ]?.value?.toString() || ""
+                          }
+                          onChange={(e) => {
+                            if (currentQuestion.id === "declaredValue") {
+                              // Remove currency symbol and commas, keep only numbers
+                              const numericValue = e.target.value.replace(
+                                /[₦,]/g,
+                                ""
+                              );
+                              if (
+                                numericValue === "" ||
+                                /^\d+$/.test(numericValue)
+                              ) {
+                                handleAnswer(
+                                  currentQuestion.id,
+                                  numericValue ? Number(numericValue) : ""
+                                );
+                              }
+                            } else {
+                              const value =
+                                currentQuestion.type === "number"
+                                  ? Number(e.target.value)
+                                  : e.target.value;
+                              handleAnswer(currentQuestion.id, value);
+                            }
+                          }}
+                          placeholder={
+                            currentQuestion.id === "declaredValue"
+                              ? "₦1,000,000"
+                              : currentQuestion.type === "number"
+                              ? "Enter number"
+                              : "Enter details"
+                          }
+                          min={currentQuestion.validation?.min}
+                          max={currentQuestion.validation?.max}
+                          className="text-lg p-4"
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -1849,18 +3408,37 @@ export function GetQuote() {
                   <Button
                     variant="outline"
                     onClick={handleBack}
-                    disabled={quizState.currentQuestion === 0}
+                    disabled={
+                      quizState.currentQuestion === 0 || isLoadingSeaLevel
+                    }
                     className="group"
                   >
                     <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
                     Back
                   </Button>
 
-                  <Button onClick={handleNext} className="group">
-                    {quizState.currentQuestion === questions.length - 1 ? (
+                  <Button
+                    onClick={handleNext}
+                    className="group"
+                    disabled={isLoadingSeaLevel}
+                  >
+                    {isLoadingSeaLevel ? (
                       <>
-                        Get Quote
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Analyzing Location...
+                      </>
+                    ) : quizState.currentStep === 4 &&
+                      quizState.currentQuestion ===
+                        currentStepQuestions.length - 1 ? (
+                      <>
+                        Review & Pay
                         <Sparkles className="h-4 w-4 ml-2 group-hover:rotate-12 transition-transform" />
+                      </>
+                    ) : quizState.currentQuestion ===
+                      currentStepQuestions.length - 1 ? (
+                      <>
+                        Next Step
+                        <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                       </>
                     ) : (
                       <>
@@ -2078,10 +3656,7 @@ export function GetQuote() {
               </Card>
 
               {/* Help Card */}
-              <Card
-                className="p-6 animate-in slide-in-from-right-4 duration-500"
-                style={{ animationDelay: "200ms" }}
-              >
+              <Card className="p-6 animate-in slide-in-from-right-4 duration-500 delay-200">
                 <div className="flex items-center space-x-3 mb-4">
                   <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -2245,7 +3820,7 @@ export function GetQuote() {
                   </div>
                 </Button>
 
-                <Button
+                {/* <Button
                   variant="outline"
                   className="w-full justify-start group"
                   onClick={handleWalletPayment}
@@ -2258,7 +3833,7 @@ export function GetQuote() {
                       Visa, Mastercard • Direct payment
                     </p>
                   </div>
-                </Button>
+                </Button> */}
               </div>
 
               <div className="flex space-x-3">
@@ -2271,7 +3846,7 @@ export function GetQuote() {
                 </Button>
                 <Button
                   className="flex-1"
-                  onClick={handleCheckout}
+                  onClick={() => handleCheckout()}
                   disabled={loading}
                 >
                   {loading ? (
@@ -2279,7 +3854,7 @@ export function GetQuote() {
                   ) : (
                     <TrendingUp className="h-4 w-4 mr-2" />
                   )}
-                  {loading ? "Processing..." : "Get Quote"}
+                  {loading ? "Processing..." : "Make Payment"}
                 </Button>
               </div>
             </div>
@@ -2349,15 +3924,22 @@ export function GetQuote() {
                   Amount to Fund
                 </label>
                 <Input
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min={Math.max(
-                    0,
-                    (quizState.premiumBreakdown?.total || 0) -
-                      (walletData?.data?.wallet?.balance || 0)
-                  )}
+                  type="text"
+                  value={
+                    fundAmount
+                      ? `₦${parseFloat(
+                          fundAmount.replace(/[₦,]/g, "") || "0"
+                        ).toLocaleString()}`
+                      : ""
+                  }
+                  onChange={(e) => {
+                    // Remove currency symbol and commas, keep only numbers
+                    const numericValue = e.target.value.replace(/[₦,]/g, "");
+                    if (numericValue === "" || /^\d+$/.test(numericValue)) {
+                      setFundAmount(numericValue);
+                    }
+                  }}
+                  placeholder="₦0"
                   className="text-lg p-4"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

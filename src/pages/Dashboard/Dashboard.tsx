@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
   Home,
@@ -9,6 +9,7 @@ import {
   Bell,
   Shield,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import { Layout } from "../../components/Layout/Layout";
 import { Card } from "../../components/UI/Card";
@@ -19,6 +20,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
 import { useGetPropertiesQuery, useGetWalletQuery } from "../../services";
 import { useGetUserQuery } from "../../services/authService";
+import { useGetPendingQuotesQuery } from "../../services/quotesService";
 
 const NairaSign = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -43,6 +45,7 @@ const NairaSign = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function Dashboard() {
   // const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const { data: userData } = useGetUserQuery(undefined, {
@@ -59,9 +62,21 @@ export function Dashboard() {
 
   const { data: propertiesData } = useGetPropertiesQuery();
 
+  console.log("Fetched properties data:", propertiesData);
+
+  const { data: pendingQuotesData } = useGetPendingQuotesQuery();
+
+  console.log("Fetched pending quotes data:", pendingQuotesData);
+
   const properties = useMemo(() => {
     return propertiesData?.data || [];
   }, [propertiesData]);
+
+  const pendingQuotes = useMemo(() => {
+    return pendingQuotesData?.data || [];
+  }, [pendingQuotesData]);
+
+  // console.log("Pending Quotes:", pendingQuotes.data.length);
 
   const pendingPropertiesCount = useMemo(() => {
     return properties.filter((property) => property.status === "pending")
@@ -107,11 +122,18 @@ export function Dashboard() {
     };
   }, [properties]);
 
-  // Get the most recent property for application tracker
+  // Get the most recent approved property for application tracker
   const recentApplication = useMemo(() => {
     if (!properties.length) return null;
 
-    const mostRecentProperty = properties[0]; // Most recent item is at index 0
+    // Filter for approved properties only
+    const approvedProperties = properties.filter(
+      (property) => property.status.toLowerCase() === "approved"
+    );
+
+    if (!approvedProperties.length) return null;
+
+    const mostRecentProperty = approvedProperties[0]; // Most recent approved property
 
     // Map property status to ApplicationTracker status types
     const mapStatus = (
@@ -160,6 +182,13 @@ export function Dashboard() {
       icon: FileText,
       href: "/dashboard/policies",
       color: "bg-purple-500 hover:bg-purple-600",
+    },
+    {
+      title: "File a Claim",
+      description: "Report damage and file claims",
+      icon: AlertTriangle,
+      href: "/dashboard/claims",
+      color: "bg-red-500 hover:bg-red-600",
     },
     {
       title: "Wallet",
@@ -267,8 +296,86 @@ export function Dashboard() {
             ))}
           </div>
 
-          {/* Application Tracker - Show if user has pending applications */}
-          {recentApplication && (
+          {/* Application Tracker - Show pending quotes or recent applications */}
+          {pendingQuotes.length > 0 ? (
+            <div className="mb-8">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+                  Pending Quote Application
+                </h2>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                        Resume Your Application
+                      </h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                        You have an incomplete quote. Resume to complete your
+                        application.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Save the quote ID and navigate with quote data
+                        if (pendingQuotes[0]) {
+                          const quoteData = pendingQuotes[0];
+                          localStorage.setItem("currentQuoteId", quoteData._id);
+                          // Store the entire quote data for resume
+                          localStorage.setItem(
+                            "resumeQuoteData",
+                            JSON.stringify(quoteData)
+                          );
+                          navigate("/dashboard/quote", {
+                            state: { resumeQuote: quoteData },
+                          });
+                        } else {
+                          navigate("/dashboard/quote");
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      Resume Application
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    {pendingQuotes[0]?.propertyType && (
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <span className="font-medium">Property Type:</span>{" "}
+                        {pendingQuotes[0].propertyType}
+                      </div>
+                    )}
+                    {pendingQuotes[0]?.createdAt && (
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <span className="font-medium">Started:</span>{" "}
+                        {new Date(
+                          pendingQuotes[0].createdAt
+                        ).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : recentApplication ? (
             <div className="mb-8">
               <ApplicationTracker
                 status={recentApplication.status}
@@ -277,7 +384,7 @@ export function Dashboard() {
                 propertyAddress={recentApplication.propertyAddress}
               />
             </div>
-          )}
+          ) : null}
 
           {/* Main Dashboard Tiles */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

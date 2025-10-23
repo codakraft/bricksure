@@ -29,6 +29,9 @@ import { Policies } from "../pages/Dashboard/Policies";
 import { WalletPage } from "../pages/Dashboard/Wallet";
 import { useSelector } from "react-redux";
 import { RootState } from "../store/store";
+import { Claims } from "../pages/Dashboard/Claims";
+import { FileClaim } from "../pages/Dashboard/FileClaim";
+import { ClaimTracker } from "../pages/Dashboard/ClaimTracker";
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -135,6 +138,32 @@ export function Router() {
           element={
             <ProtectedRoute>
               <GetQuote />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/claims"
+          element={
+            <ProtectedRoute>
+              <Claims />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/claims/new"
+          element={
+            <ProtectedRoute>
+              <FileClaim />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/claims/:id"
+          element={
+            <ProtectedRoute>
+              <ClaimTracker />
             </ProtectedRoute>
           }
         />
