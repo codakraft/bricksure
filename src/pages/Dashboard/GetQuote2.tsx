@@ -71,6 +71,7 @@ interface QuizState {
   answers: Record<string, QuizAnswer>;
   currentQuestion: number;
   totalQuestions: number;
+  currentStep: number; // Track which of the 4 steps (1-4), step 5 is payment
   propertyCategory: string;
   premiumBreakdown: PremiumBreakdown | null;
 }
@@ -148,6 +149,7 @@ export function GetQuote() {
     answers: {},
     currentQuestion: 0,
     totalQuestions: 0,
+    currentStep: 1, // Start at step 1 (of 4 steps, step 5 is payment)
     propertyCategory: "",
     premiumBreakdown: null,
   });
@@ -536,10 +538,10 @@ export function GetQuote() {
         emoji: "📅",
         type: "single",
         options: [
-          { value: "new", label: "Less than 5 years", icon: Sparkles },
-          { value: "recent", label: "5-10 years", icon: Calendar },
-          { value: "mature", label: "10-20 years", icon: Calendar },
-          { value: "old", label: "Over 20 years", icon: Calendar },
+          { value: "0-5", label: "Less than 5 years", icon: Sparkles },
+          { value: "5-10", label: "5-10 years", icon: Calendar },
+          { value: "10-20", label: "10-20 years", icon: Calendar },
+          { value: "20+", label: "Over 20 years", icon: Calendar },
         ],
       },
       {
@@ -905,6 +907,82 @@ export function GetQuote() {
     return questions.filter((q) => !q.showIf || q.showIf(answers));
   };
 
+  // Organize questions into 4 steps
+  const getQuestionsForStep = (step: number): Question[] => {
+    const allQuestions = generateQuestions();
+
+    // Define step boundaries based on question themes
+    // Step 1: Property Type & Basic Info (property type, follow-ups, plots)
+    // Step 2: Structure & Condition (walls, roof, age, condition)
+    // Step 3: Occupancy, Use & Safety (occupancy, business use, unoccupied, location, risks, security, fire safety)
+    // Step 4: Additional Info & Extras (paying guests, staff, insurance history, riders, value, payment frequency)
+
+    const step1Questions = [
+      "propertyType",
+      "propertyTypeOther",
+      "floors",
+      "rooms",
+      "beds",
+      "blocks",
+      "pupilSeats",
+      "pumps",
+      "seats",
+      "plots",
+    ];
+
+    const step2Questions = [
+      "wallMaterial",
+      "wallMaterialOther",
+      "roofType",
+      "roofTypeOther",
+      "buildingAge",
+      "buildingCondition",
+    ];
+
+    const step3Questions = [
+      "occupancy",
+      "furnished",
+      "occupancyOther",
+      "businessUse",
+      "businessDetails",
+      "unoccupied",
+      "unoccupiedDuration",
+      "propertyLocation",
+      "pastLosses",
+      "lossDetails",
+      "nearbyRisks",
+      "nearbyRiskOther",
+      "security",
+      "fireSafety",
+    ];
+
+    const step4Questions = [
+      "payingGuests",
+      "guestCount",
+      "domesticStaff",
+      "previousDecline",
+      "declineDetails",
+      "currentInsurance",
+      "insuranceDetails",
+      "riders",
+      "declaredValue",
+      "paymentFrequency",
+    ];
+
+    let questionIds: string[] = [];
+    if (step === 1) questionIds = step1Questions;
+    else if (step === 2) questionIds = step2Questions;
+    else if (step === 3) questionIds = step3Questions;
+    else if (step === 4) questionIds = step4Questions;
+
+    // Filter questions to only include those for this step
+    return allQuestions.filter((q) => questionIds.includes(q.id));
+  };
+
+  // Get current step's questions
+  const currentStepQuestions = getQuestionsForStep(quizState.currentStep);
+  const currentQuestion = currentStepQuestions[quizState.currentQuestion];
+
   const handleCheckout = async (currentStep?: number) => {
     setLoading(true);
 
@@ -965,10 +1043,10 @@ export function GetQuote() {
     // Calculate property age from building age
     const buildingAgeValue = answers.buildingAge?.value as string;
     let propertyAge = 0;
-    if (buildingAgeValue === "new") propertyAge = 2;
-    else if (buildingAgeValue === "recent") propertyAge = 7;
-    else if (buildingAgeValue === "mature") propertyAge = 15;
-    else if (buildingAgeValue === "old") propertyAge = 25;
+    if (buildingAgeValue === "0-5") propertyAge = 2;
+    else if (buildingAgeValue === "5-10") propertyAge = 7;
+    else if (buildingAgeValue === "10-20") propertyAge = 15;
+    else if (buildingAgeValue === "20+") propertyAge = 25;
 
     // Map quiz property type to API property type key
     const propertyType = answers.propertyType?.value as string;
@@ -1399,11 +1477,51 @@ export function GetQuote() {
     const currentWalletBalance = walletData?.data?.wallet?.balance || 0;
 
     if (currentWalletBalance >= totalPrice) {
-      // Wallet has sufficient funds, proceed with checkout
+      // Wallet has sufficient funds, proceed with payment
       setLoading(true);
+
+      // Set current step to 5 (payment step)
+      setQuizState((prev) => ({ ...prev, currentStep: 5 }));
+
       try {
-        await handleCheckout();
-      } catch {
+        // Get the saved quote ID from localStorage
+        const savedQuoteId = localStorage.getItem("currentQuoteId");
+
+        if (!savedQuoteId) {
+          console.error("No quote ID found in localStorage for payment");
+          addToast({
+            type: "error",
+            title: "Quote Not Found",
+            message:
+              "Could not find the quote for payment. Please check your dashboard.",
+          });
+          navigate("/dashboard");
+          return;
+        }
+
+        console.log("Step 5 (Payment) - Using saved Quote ID:", savedQuoteId);
+
+        // Call quotePayment with the quote ID
+        const paymentRes = await quotePayment({
+          quoteId: savedQuoteId,
+        }).unwrap();
+
+        console.log("Payment Response:", paymentRes);
+
+        // Clear the quote ID from localStorage after successful payment
+        localStorage.removeItem("currentQuoteId");
+
+        addToast({
+          type: "success",
+          title: "Payment Successful!",
+          message:
+            "Your policy application has been submitted and payment processed. You will be notified of the approval status.",
+        });
+
+        // Navigate to dashboard with success state
+        navigate("/dashboard?success=quote-submitted");
+      } catch (paymentErr) {
+        console.error("Payment error:", paymentErr);
         addToast({
           type: "error",
           title: "Payment Failed",
@@ -1419,13 +1537,11 @@ export function GetQuote() {
     }
   };
 
-  const questions = generateQuestions();
-  const currentQuestion = questions[quizState.currentQuestion];
-
   // Update total questions when questions change
   useEffect(() => {
-    setQuizState((prev) => ({ ...prev, totalQuestions: questions.length }));
-  }, [questions.length]);
+    const totalQuestionsInStep = currentStepQuestions.length;
+    setQuizState((prev) => ({ ...prev, totalQuestions: totalQuestionsInStep }));
+  }, [currentStepQuestions.length]);
 
   // Determine property category for premium calculation
   const determinePropertyCategory = (
@@ -1608,16 +1724,16 @@ export function GetQuote() {
       console.log("Building Age:", buildingAge);
       console.log("Age Risks from API:", ageRisks);
 
-      if (buildingAge === "old" && ageRisks?.["20+"]) {
+      if (buildingAge === "20+" && ageRisks?.["20+"]) {
         totalRiskModifier += Number(ageRisks["20+"]); // e.g., 0.25 for 25% surcharge
         console.log("Applied old building risk:", Number(ageRisks["20+"]));
-      } else if (buildingAge === "mature" && ageRisks?.["10-20"]) {
+      } else if (buildingAge === "10-20" && ageRisks?.["10-20"]) {
         totalRiskModifier += Number(ageRisks["10-20"]); // e.g., 0.10 for 10% surcharge
         console.log("Applied mature building risk:", Number(ageRisks["10-20"]));
-      } else if (buildingAge === "recent" && ageRisks?.["5-10"]) {
+      } else if (buildingAge === "5-10" && ageRisks?.["5-10"]) {
         totalRiskModifier += Number(ageRisks["5-10"]); // e.g., -0.05 for 5% discount
         console.log("Applied recent building risk:", Number(ageRisks["5-10"]));
-      } else if (buildingAge === "new" && ageRisks?.["0-5"]) {
+      } else if (buildingAge === "0-5" && ageRisks?.["0-5"]) {
         totalRiskModifier += Number(ageRisks["0-5"]); // e.g., -0.01 for 1% discount
         console.log("Applied new building risk:", Number(ageRisks["0-5"]));
       }
@@ -1884,7 +2000,7 @@ export function GetQuote() {
       }
 
       // New building discount already applied in age risk modifier above
-      if (buildingAge === "new" && ageRisks?.["0-5"]) {
+      if (buildingAge === "0-5" && ageRisks?.["0-5"]) {
         const newBuildingBonus = Number(ageRisks["0-5"]);
         if (newBuildingBonus < 0) {
           discounts.push({
@@ -1899,7 +2015,7 @@ export function GetQuote() {
       // We're creating this list for display purposes in the breakdown
       const surcharges = [];
 
-      if (buildingAge === "old" && ageRisks?.["20+"]) {
+      if (buildingAge === "20+" && ageRisks?.["20+"]) {
         const oldBuildingSurcharge = Number(ageRisks["20+"]);
         if (oldBuildingSurcharge > 0) {
           surcharges.push({
@@ -2151,26 +2267,50 @@ export function GetQuote() {
 
   const handleNext = async () => {
     if (validateCurrentQuestion()) {
-      // Call handleCheckout to save progress at each step
-      await handleCheckout(quizState.currentQuestion + 1);
+      // Check if we're on the last question of the current step
+      const isLastQuestionInCurrentStep =
+        quizState.currentQuestion === currentStepQuestions.length - 1;
 
-      if (quizState.currentQuestion < questions.length - 1) {
+      if (isLastQuestionInCurrentStep) {
+        // Save progress for this step
+        await handleCheckout(quizState.currentStep);
+
+        // Check if we're on step 4 (last step before payment)
+        if (quizState.currentStep === 4) {
+          // Show payment modal (step 5)
+          setShowTermsModal(true);
+        } else {
+          // Move to next step and reset question counter
+          setQuizState((prev) => ({
+            ...prev,
+            currentStep: prev.currentStep + 1,
+            currentQuestion: 0,
+          }));
+        }
+      } else {
+        // Move to next question within current step
         setQuizState((prev) => ({
           ...prev,
           currentQuestion: prev.currentQuestion + 1,
         }));
-      } else {
-        // Show terms and conditions
-        setShowTermsModal(true);
       }
     }
   };
 
   const handleBack = () => {
     if (quizState.currentQuestion > 0) {
+      // Go back to previous question in current step
       setQuizState((prev) => ({
         ...prev,
         currentQuestion: prev.currentQuestion - 1,
+      }));
+    } else if (quizState.currentStep > 1) {
+      // Go back to previous step's last question
+      const prevStepQuestions = getQuestionsForStep(quizState.currentStep - 1);
+      setQuizState((prev) => ({
+        ...prev,
+        currentStep: prev.currentStep - 1,
+        currentQuestion: prevStepQuestions.length - 1,
       }));
     }
   };
@@ -2245,8 +2385,13 @@ export function GetQuote() {
     }).format(amount);
   };
 
-  const getProgress = () =>
-    ((quizState.currentQuestion + 1) / questions.length) * 100;
+  const getProgress = () => {
+    // Calculate progress based on steps (4 steps total, each step is 25%)
+    const stepProgress = (quizState.currentStep - 1) * 25;
+    const questionProgressInStep =
+      ((quizState.currentQuestion + 1) / currentStepQuestions.length) * 25;
+    return stepProgress + questionProgressInStep;
+  };
 
   // Log quiz start
   useEffect(() => {
@@ -2284,8 +2429,58 @@ export function GetQuote() {
                 className="text-gray-600 dark:text-gray-400 animate-fade-in"
                 style={{ animationDelay: "200ms" }}
               >
-                Question {quizState.currentQuestion + 1} of {questions.length}
+                Step {quizState.currentStep} of 4 • Question{" "}
+                {quizState.currentQuestion + 1} of {currentStepQuestions.length}
               </p>
+            </div>
+          </div>
+
+          {/* Step Indicator */}
+          <div
+            className="mb-8 animate-fade-in"
+            style={{ animationDelay: "300ms" }}
+          >
+            <div className="max-w-4xl mx-auto">
+              <div className="flex justify-between items-center">
+                {[1, 2, 3, 4].map((step) => (
+                  <div key={step} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
+                          step < quizState.currentStep
+                            ? "bg-green-500 text-white"
+                            : step === quizState.currentStep
+                            ? "bg-blue-600 text-white ring-4 ring-blue-200"
+                            : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {step < quizState.currentStep ? "✓" : step}
+                      </div>
+                      <span
+                        className={`text-xs mt-2 font-medium ${
+                          step === quizState.currentStep
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {step === 1 && "Property Info"}
+                        {step === 2 && "Structure"}
+                        {step === 3 && "Safety & Use"}
+                        {step === 4 && "Extras & Value"}
+                      </span>
+                    </div>
+                    {step < 4 && (
+                      <div
+                        className={`flex-1 h-1 mx-2 rounded ${
+                          step < quizState.currentStep
+                            ? "bg-green-500"
+                            : "bg-gray-200 dark:bg-gray-700"
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -2296,7 +2491,7 @@ export function GetQuote() {
           >
             <div className="max-w-2xl mx-auto">
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Progress</span>
+                <span>Step Progress</span>
                 <span>{Math.round(getProgress())}% Complete</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
@@ -2903,10 +3098,18 @@ export function GetQuote() {
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Analyzing Location...
                       </>
-                    ) : quizState.currentQuestion === questions.length - 1 ? (
+                    ) : quizState.currentStep === 4 &&
+                      quizState.currentQuestion ===
+                        currentStepQuestions.length - 1 ? (
                       <>
-                        Get Quote
+                        Review & Pay
                         <Sparkles className="h-4 w-4 ml-2 group-hover:rotate-12 transition-transform" />
+                      </>
+                    ) : quizState.currentQuestion ===
+                      currentStepQuestions.length - 1 ? (
+                      <>
+                        Next Step
+                        <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                       </>
                     ) : (
                       <>
@@ -3288,7 +3491,7 @@ export function GetQuote() {
                   </div>
                 </Button>
 
-                <Button
+                {/* <Button
                   variant="outline"
                   className="w-full justify-start group"
                   onClick={handleWalletPayment}
@@ -3301,7 +3504,7 @@ export function GetQuote() {
                       Visa, Mastercard • Direct payment
                     </p>
                   </div>
-                </Button>
+                </Button> */}
               </div>
 
               <div className="flex space-x-3">
@@ -3322,7 +3525,7 @@ export function GetQuote() {
                   ) : (
                     <TrendingUp className="h-4 w-4 mr-2" />
                   )}
-                  {loading ? "Processing..." : "Get Quote"}
+                  {loading ? "Processing..." : "Make Payment"}
                 </Button>
               </div>
             </div>
