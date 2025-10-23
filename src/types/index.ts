@@ -284,9 +284,131 @@ export interface CreateQuoteRequest {
   };
 }
 
+export interface NewCreateQuoteRequest {
+  propertyTypeCharges: {
+    [key: string]: {
+      charges: {
+        perPlot?: number;
+        perFloor?: number;
+        perBlock?: number;
+        perPupilSeat?: number;
+        perRoom?: number;
+        perBed?: number;
+        perPump?: number;
+        perCinemaSeat?: number;
+        perApartmentOfficeWing?: number;
+      };
+    };
+  };
+  address: string;
+  paymentFrequency: string;
+  propertyValue: number;
+  riskAdjustments: {
+    wallMaterial: string;
+    buildingAge: string;
+    pastLoss: boolean;
+    unOccupiedForAwhile: boolean;
+    unOccupiedDuration: number;
+    floodRisk: boolean;
+  };
+  safetySecurityDiscounts: {
+    securitySafety: {
+      estateGate: boolean;
+      cctv: boolean;
+      securityGuards: boolean;
+      strongLocks: boolean;
+      noGlassPanels: boolean;
+      occupied: boolean;
+    };
+    fireSafety: {
+      fireExtinguisher: boolean;
+      smokeAlarm: boolean;
+      waterAccess: boolean;
+    };
+  };
+  extraCoverageFees: {
+    theft: boolean;
+    floodProtection: boolean;
+    publicLiability: boolean;
+    extendedFireCover: boolean;
+    burglaryCover: boolean;
+  };
+  duration: number;
+  propertyAge: number;
+  step: number;
+  _id?: string;
+}
+
 export interface CreateQuoteResponse {
   message: string;
   data: CreateQuoteData;
+}
+
+export interface NewCreateQuoteResponse {
+  message: string;
+  data: {
+    _id: string;
+    user: string;
+    status: string;
+    expired: boolean;
+    charges: {
+      perPlot: number;
+    };
+    category: string;
+    otherPropertyType: string;
+    extraCoverage: {
+      theft: boolean;
+      floodProtection: boolean;
+      publicLiability: boolean;
+      extendedFireCover: boolean;
+      burglaryCover: boolean;
+    };
+    wallMaterial: string;
+    floodRisk: string;
+    specialRisk: string;
+    roofMaterial: string;
+    buildingAge: string;
+    rent: boolean;
+    residentDomesticStaff: boolean;
+    repairNeeded: boolean;
+    furnished: boolean;
+    commercialUse: boolean;
+    pastInsurance: boolean;
+    pastInsuranceDetails: string;
+    currentlyInsured: boolean;
+    pastLoss: boolean;
+    pastLossDetails: string;
+    address: string;
+    duration: number;
+    propertyValue: number;
+    propertyAge: number;
+    totalAmount: number;
+    amountPaid: number;
+    nextPayment: string;
+    policyPeriod: string;
+    securitySafety: {
+      estateGate: boolean;
+      cctv: boolean;
+      securityGuards: boolean;
+      strongLocks: boolean;
+      noGlassPanels: boolean;
+      occupied: boolean;
+    };
+    fireSafety: {
+      fireExtinguisher: boolean;
+      smokeAlarm: boolean;
+      waterAccess: boolean;
+    };
+    highTransactionPolicy: boolean;
+    step: number;
+    unOccupiedForAwhile: boolean;
+    unOccupiedDuration: number;
+    createdAt: string;
+    updatedAt: string;
+    policyCode: string;
+    __v: number;
+    paymentFrequency: string;
+  };
 }
 
 export interface CreateQuoteData {
@@ -437,30 +559,30 @@ export interface ChargesResponse {
 }
 
 export interface ChargesResponseData {
-  categories: ChargesCategories;
+  // categories: ChargesCategories;
+  propertyTypeCharges: PropertyTypeCharges;
+  riskAdjustments: RiskAdjustments;
+  safetySecurityDiscounts: SafetySecurityDiscounts;
+  extraCoverageFees: ExtraCoverageFees;
+  _id: string;
+  createdBy: string;
+  propertyBaseFee: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+  lastUpdatedBy: string;
 }
 
-export interface ChargesCategories {
-  propertyBaseFee: string;
-  propertyCategory: PropertyCategory;
-  pastLoss: string;
-  wallMaterial: WallMaterial;
-  buildingAge: BuildingAge;
-  floodRisk: string;
-  specialRisk: number;
-  securitySafety: SecuritySafety;
-  fireSafety: FireSafety;
-  repairNeeded: string;
-  commercialUse: string;
-  extraCoverage: ChargesExtraCoverage;
-}
-
-export interface PropertyCategory {
+export interface PropertyTypeCharges {
+  bungalow: Bungalow;
+  duplex: Duplex;
+  storeyBuilding: StoreyBuilding;
+  flats: Flats;
   singleOccOffice: SingleOccOffice;
   singleOccResidential: SingleOccResidential;
   hotelHostelGuest: HotelHostelGuest;
   recreationCinema: RecreationCinema;
-  schoolTraining: SchoolTraining;
+  school: School;
   petrolGasStation: PetrolGasStation;
   hospitalClinic: HospitalClinic;
   multiOccBusiness: MultiOccBusiness;
@@ -468,133 +590,283 @@ export interface PropertyCategory {
   others: Others;
 }
 
-export interface SingleOccOffice {
-  charges: Charges;
+export interface Bungalow {
+  perPlot: number;
 }
 
-export interface Charges {
-  perFloor: string;
-  perPlot: string;
+export interface Duplex {
+  perFloor: number;
+  perPlot: number;
+}
+
+export interface StoreyBuilding {
+  perFloor: number;
+  perPlot: number;
+}
+
+export interface Flats {
+  perPlot: number;
+}
+
+export interface SingleOccOffice {
+  perFloor: number;
+  perPlot: number;
 }
 
 export interface SingleOccResidential {
-  charges: Charges2;
-}
-
-export interface Charges2 {
-  perFloor: string;
-  perPlot: string;
+  perFloor: number;
+  perPlot: number;
 }
 
 export interface HotelHostelGuest {
-  charges: Charges3;
-}
-
-export interface Charges3 {
-  perRoom: string;
-  perBed: string;
+  perRoom: number;
+  perBed: number;
 }
 
 export interface RecreationCinema {
-  charges: Charges4;
+  perFloor: number;
+  perCinemaSeat: number;
 }
 
-export interface Charges4 {
-  perFloor: string;
-  perCinemaSeat: string;
-}
-
-export interface SchoolTraining {
-  charges: Charges5;
-}
-
-export interface Charges5 {
-  perBlock: string;
-  perPupilSeat: string;
+export interface School {
+  perBlock: number;
+  perPupilSeat: number;
+  perPlot: number;
 }
 
 export interface PetrolGasStation {
-  charges: Charges6;
-}
-
-export interface Charges6 {
-  perPump: string;
+  perPump: number;
 }
 
 export interface HospitalClinic {
-  charges: Charges7;
-}
-
-export interface Charges7 {
-  perFloor: string;
-  perPlot: string;
+  perFloor: number;
+  perPlot: number;
 }
 
 export interface MultiOccBusiness {
-  charges: Charges8;
-}
-
-export interface Charges8 {
-  perApartmentOfficeWing: string;
+  perApartmentOfficeWing: number;
 }
 
 export interface MultiOccMixedRes {
-  charges: Charges9;
-}
-
-export interface Charges9 {
-  perApartmentOfficeWing: string;
+  perApartmentOfficeWing: number;
 }
 
 export interface Others {
-  charges: Charges10;
+  perFloor: number;
+  perPlot: number;
 }
 
-export interface Charges10 {
-  perFloor: string;
-  perPlot: string;
+export interface RiskAdjustments {
+  wallMaterial: WallMaterial;
+  buildingAge: BuildingAge;
+  pastLoss: number;
+  unOccupiedForAwhile: number;
+  floodRisk: number;
+  specialRisk: number;
+  repairNeeded: number;
+  commercialUse: number;
 }
 
 export interface WallMaterial {
-  brick: string;
-  mud: string;
-  wood: string;
-  mixedMaterials: string;
+  brick: number;
+  mud: number;
+  wood: number;
+  mixedMaterials: number;
 }
 
 export interface BuildingAge {
-  "0-5": string;
-  "5-10": string;
-  "10-20": string;
-  "20+": string;
+  "0-5": number;
+  "5-10": number;
+  "10-20": number;
+  "20+": number;
+}
+
+export interface SafetySecurityDiscounts {
+  securitySafety: SecuritySafety;
+  fireSafety: FireSafety;
 }
 
 export interface SecuritySafety {
-  estateGate: string;
-  cctv: string;
-  securityGuards: string;
-  strongLocks: string;
-  noGlassPanels: string;
-  occupied: string;
+  estateGate: number;
+  cctv: number;
+  securityGuards: number;
+  strongLocks: number;
+  noGlassPanels: number;
+  occupied: number;
 }
 
 export interface FireSafety {
-  fireExtinguisher: string;
-  smokeAlarm: string;
-  waterAccess: string;
+  fireExtinguisher: number;
+  smokeAlarm: number;
+  waterAccess: number;
 }
 
-export interface ChargesExtraCoverage {
-  theft: string;
-  floodProtection: string;
-  publicLiability: string;
-  extendedFireCover: string;
-  burglaryCover: string;
+export interface ExtraCoverageFees {
+  theft: number;
+  floodProtection: number;
+  publicLiability: number;
+  extendedFireCover: number;
+  burglaryCover: number;
 }
+
+// export interface ChargesCategories {
+//   propertyBaseFee: string;
+//   propertyCategory: PropertyCategory;
+//   pastLoss: string;
+//   wallMaterial: WallMaterial;
+//   buildingAge: BuildingAge;
+//   floodRisk: string;
+//   specialRisk: number;
+//   securitySafety: SecuritySafety;
+//   fireSafety: FireSafety;
+//   repairNeeded: string;
+//   commercialUse: string;
+//   extraCoverage: ChargesExtraCoverage;
+// }
+
+// export interface PropertyCategory {
+//   singleOccOffice: SingleOccOffice;
+//   singleOccResidential: SingleOccResidential;
+//   hotelHostelGuest: HotelHostelGuest;
+//   recreationCinema: RecreationCinema;
+//   schoolTraining: SchoolTraining;
+//   petrolGasStation: PetrolGasStation;
+//   hospitalClinic: HospitalClinic;
+//   multiOccBusiness: MultiOccBusiness;
+//   multiOccMixedRes: MultiOccMixedRes;
+//   others: Others;
+// }
+
+// export interface SingleOccOffice {
+//   charges: Charges;
+// }
+
+// export interface Charges {
+//   perFloor: string;
+//   perPlot: string;
+// }
+
+// export interface SingleOccResidential {
+//   charges: Charges2;
+// }
+
+// export interface Charges2 {
+//   perFloor: string;
+//   perPlot: string;
+// }
+
+// export interface HotelHostelGuest {
+//   charges: Charges3;
+// }
+
+// export interface Charges3 {
+//   perRoom: string;
+//   perBed: string;
+// }
+
+// export interface RecreationCinema {
+//   charges: Charges4;
+// }
+
+// export interface Charges4 {
+//   perFloor: string;
+//   perCinemaSeat: string;
+// }
+
+// export interface SchoolTraining {
+//   charges: Charges5;
+// }
+
+// export interface Charges5 {
+//   perBlock: string;
+//   perPupilSeat: string;
+// }
+
+// export interface PetrolGasStation {
+//   charges: Charges6;
+// }
+
+// export interface Charges6 {
+//   perPump: string;
+// }
+
+// export interface HospitalClinic {
+//   charges: Charges7;
+// }
+
+// export interface Charges7 {
+//   perFloor: string;
+//   perPlot: string;
+// }
+
+// export interface MultiOccBusiness {
+//   charges: Charges8;
+// }
+
+// export interface Charges8 {
+//   perApartmentOfficeWing: string;
+// }
+
+// export interface MultiOccMixedRes {
+//   charges: Charges9;
+// }
+
+// export interface Charges9 {
+//   perApartmentOfficeWing: string;
+// }
+
+// export interface Others {
+//   charges: Charges10;
+// }
+
+// export interface Charges10 {
+//   perFloor: string;
+//   perPlot: string;
+// }
+
+// export interface WallMaterial {
+//   brick: string;
+//   mud: string;
+//   wood: string;
+//   mixedMaterials: string;
+// }
+
+// export interface BuildingAge {
+//   "0-5": string;
+//   "5-10": string;
+//   "10-20": string;
+//   "20+": string;
+// }
+
+// export interface SecuritySafety {
+//   estateGate: string;
+//   cctv: string;
+//   securityGuards: string;
+//   strongLocks: string;
+//   noGlassPanels: string;
+//   occupied: string;
+// }
+
+// export interface FireSafety {
+//   fireExtinguisher: string;
+//   smokeAlarm: string;
+//   waterAccess: string;
+// }
+
+// export interface ChargesExtraCoverage {
+//   theft: string;
+//   floodProtection: string;
+//   publicLiability: string;
+//   extendedFireCover: string;
+//   burglaryCover: string;
+// }
 
 export interface SeaLevelResponse {
   location: string;
   sea_level_assessment: string;
+  distance_from_sea_level?: string;
+  distance_to_sea_level_km?: number;
+  elevation_meters?: number;
   success: boolean;
   error: null;
 }
